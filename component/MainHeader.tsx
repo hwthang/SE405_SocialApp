@@ -28,12 +28,13 @@ const MainHeader = ({ onPressProfile }: { onPressProfile: () => void }) => {
             gap: 8,
           }}
         >
-          <WaypointsIcon color={Colors.blue[500]} size={40} />
+          <WaypointsIcon color={Colors.blue[500]} size={36} />
           <Text
             style={{
-              fontSize: 24,
+              fontSize: 20,
               color: Colors.blue[500],
-              fontWeight: "500",
+              fontWeight: "900",
+              letterSpacing: 4,
             }}
           >
             SOCIAL

@@ -1,15 +1,18 @@
 import React, { ReactNode } from "react";
-import { Text, TouchableOpacity } from "react-native";
+import { TouchableOpacity } from "react-native";
 
 const CustomButton = ({
-  children = <Text>Button</Text>,
+  children,
   onPress,
 }: {
   children: ReactNode;
   onPress: () => void;
 }) => {
   return (
-    <TouchableOpacity style={{ borderWidth: 1, width: 90 }} onPress={onPress}>
+    <TouchableOpacity
+      style={{ borderWidth: 1 }}
+      onPress={onPress}
+    >
       {children}
     </TouchableOpacity>
   );

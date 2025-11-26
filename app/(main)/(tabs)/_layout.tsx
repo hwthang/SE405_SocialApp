@@ -1,3 +1,4 @@
+import BackHeader from "@/component/BackHeader";
 import MainHeader from "@/component/MainHeader";
 import { Colors } from "@/constant/Colors";
 import { AuthHelper } from "@/helper/AuthHelper";
@@ -20,7 +21,11 @@ const TabLayout = () => {
   return (
     <Tabs
       screenOptions={{
-        header: () => <MainHeader onPressProfile={()=>router.replace('/(main)/profile')}/>,
+        header: () => (
+          <MainHeader
+            onPressProfile={() => router.replace("/(main)/profile")}
+          />
+        ),
         // tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: "#fff",
@@ -72,6 +77,7 @@ const TabLayout = () => {
         <Tabs.Screen
           name="post/index"
           options={{
+            header: () => <BackHeader onBack={() => router.back()} />,
             title: "",
             tabBarIcon: () => (
               <View
