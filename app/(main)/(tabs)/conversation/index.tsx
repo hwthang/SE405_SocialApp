@@ -22,7 +22,7 @@ import ConversationItem from "../../../../component/message/ConversationItem";
 const mockData = [
   {
     id: "1",
-    name: "Tình iu tuyệt vời",
+    name: "Nguyễn văn A",
     avatar:
       "https://i.pinimg.com/originals/25/6a/e4/256ae40f4af0b506f7f6ffdbb9a09a1e.jpg",
     lastMessage: "Đi hắn lên viae hè ấy",
@@ -33,7 +33,7 @@ const mockData = [
     name: "Đặng Hữu Thắng",
     avatar:
       "https://i.pinimg.com/564x/4e/1e/f8/4e1ef86d080d5e86043cb6805ae0c2f5.jpg",
-    lastMessage: "Ôm để mờ làm",
+    lastMessage: "ok",
     time: "20:01",
   },
 ];
@@ -54,7 +54,7 @@ export default function ConversationScreen() {
             name={item.name}
             lastMessage={item.lastMessage}
             time={item.time}
-            //onPress={() => router.push(`/conversation/${item.id}`)}
+            onPress={() => router.push(`/conversation/${item.id}`)}
           />
         )}
       />
