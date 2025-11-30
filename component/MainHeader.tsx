@@ -1,11 +1,12 @@
 // import { Colors } from "@/constant/Color";
 import { Colors } from "@/constant/Colors";
+import { router } from "expo-router";
 import { WaypointsIcon } from "lucide-react-native";
 import React from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import CustomHeader from "./custom/CustomHeader";
 
-const MainHeader = ({ onPressProfile }: { onPressProfile: () => void }) => {
+const MainHeader = () => {
   return (
     <CustomHeader>
       <View
@@ -56,7 +57,7 @@ const MainHeader = ({ onPressProfile }: { onPressProfile: () => void }) => {
               justifyContent: "center",
               padding: 2,
             }}
-            onPress={onPressProfile}
+            onPress={()=>router.replace("/(main)/profile")}
           >
             <Image
               source={{

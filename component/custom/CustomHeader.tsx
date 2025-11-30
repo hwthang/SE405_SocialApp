@@ -18,7 +18,7 @@ const CustomHeader = ({ children }: CustomHeaderProps) => {
         paddingBottom: 10,
         paddingHorizontal: 10,
         justifyContent: "center",
-        marginBottom: 10,
+        // marginBottom: 10,
         backgroundColor: "white",
         // Shadow cho iOS
         shadowColor: "#000",

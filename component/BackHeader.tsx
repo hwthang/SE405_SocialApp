@@ -1,12 +1,13 @@
+import { router } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
 import React from "react";
 import { TouchableOpacity } from "react-native";
 import CustomHeader from "./custom/CustomHeader";
 
-const BackHeader = ({ onBack }: { onBack: () => void }) => {
+const BackHeader = () => {
   return (
     <CustomHeader>
-      <TouchableOpacity onPress={onBack}>
+      <TouchableOpacity onPress={()=>router.back()}>
         <ChevronLeft />
       </TouchableOpacity>
     </CustomHeader>

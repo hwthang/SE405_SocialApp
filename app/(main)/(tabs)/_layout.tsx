@@ -14,18 +14,13 @@ import {
   Users,
 } from "lucide-react-native";
 import React from "react";
-import { Text, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 
 const TabLayout = () => {
   const isAdmin = AuthHelper.getInstance().getIsAdmin();
   return (
     <Tabs
       screenOptions={{
-        header: () => (
-          <MainHeader
-            onPressProfile={() => router.replace("/(main)/profile")}
-          />
-        ),
         // tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: "#fff",
@@ -45,6 +40,7 @@ const TabLayout = () => {
         <Tabs.Screen
           name="home/index"
           options={{
+            header: () => <MainHeader />,
             title: "Trang chủ",
             tabBarIcon: ({ focused }) => (
               <Home
@@ -59,14 +55,19 @@ const TabLayout = () => {
       {/* 👥 Friend */}
       <Tabs.Protected guard={!isAdmin}>
         <Tabs.Screen
-          name="friend/index"
+          name="friend"
           options={{
+            headerShown: false,
             title: "Bạn bè",
             tabBarIcon: ({ focused }) => (
-              <Users
-                color={focused ? Colors.blue[600] : Colors.gray[500]}
-                size={26}
-              />
+              <TouchableOpacity
+                onPress={() => router.replace("/(main)/(tabs)/friend")}
+              >
+                <Users
+                  color={focused ? Colors.blue[600] : Colors.gray[500]}
+                  size={26}
+                />
+              </TouchableOpacity>
             ),
           }}
         />
@@ -77,7 +78,7 @@ const TabLayout = () => {
         <Tabs.Screen
           name="post/index"
           options={{
-            header: () => <BackHeader onBack={() => router.back()} />,
+            header: () => <BackHeader />,
             title: "",
             tabBarIcon: () => (
               <View
