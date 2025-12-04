@@ -133,19 +133,54 @@ export default function ChatDetailScreen() {
     );
   };
 
-  return (
-    <View style={{ flex: 1, backgroundColor: "#f8f8f8" }}>
-      {/* Header */}
-      <ChatHeader
-        name="Nguyễn Văn A"
-        avatar="https://i.pravatar.cc/150?img=1"
-        onBack={() => router.back()}
-      />
+//   return (
+//     <View style={{ flex: 1, backgroundColor: "#f8f8f8" }}>
+//       {/* Header */}
+//       <ChatHeader
+//         name="Nguyễn Văn A"
+//         avatar="https://i.pravatar.cc/150?img=1"
+//         onBack={() => router.back()}
+//       />
 
-      {/* Pinned Message */}
-      <PinnedMessage text={pinned} />
+//       {/* Pinned Message */}
+//       <PinnedMessage text={pinned} />
 
-      {/* Message List */}
+//       {/* Message List */}
+//       <MessageList
+//         messages={list}
+//         typing={typing}
+//         onDelete={handleDelete}
+//         onReply={handleReply}
+//         onReact={handleReact}
+//       />
+
+//       {/* Input */}
+//       {/* <InputBar value={message} onChange={setMessage} onSend={handleSend} /> */}
+//       <InputBar
+//   value={message}
+//   onChange={setMessage}
+//   onSend={handleSend}
+//   onTyping={(state: boolean) => setTyping(state)}
+//   onSendImage={() => {}}
+//   onRecordVoice={() => {}}
+//   onOpenSticker={() => {}}
+// />
+
+//     </View>
+//   );
+// }
+return (
+  <View style={{ flex: 1, backgroundColor: "#f8f8f8" }}>
+
+    <ChatHeader
+      name="Nguyễn Văn A"
+      avatar="https://i.pravatar.cc/150?img=1"
+      onBack={() => router.back()}
+    />
+
+    <PinnedMessage text={pinned} />
+
+    <View style={{ flex: 1 }}>
       <MessageList
         messages={list}
         typing={typing}
@@ -153,19 +188,16 @@ export default function ChatDetailScreen() {
         onReply={handleReply}
         onReact={handleReact}
       />
-
-      {/* Input */}
-      {/* <InputBar value={message} onChange={setMessage} onSend={handleSend} /> */}
-      <InputBar
-  value={message}
-  onChange={setMessage}
-  onSend={handleSend}
-  onTyping={(state: boolean) => setTyping(state)}
-  onSendImage={() => {}}
-  onRecordVoice={() => {}}
-  onOpenSticker={() => {}}
-/>
-
     </View>
-  );
+
+    <InputBar
+      value={message}
+      onChange={setMessage}
+      onSend={handleSend}
+      onTyping={(state: boolean) => setTyping(state)}
+      onSendImage={() => {}}
+      onRecordVoice={() => {}}
+    />
+  </View>
+);
 }
