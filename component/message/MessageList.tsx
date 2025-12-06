@@ -26,6 +26,8 @@ const MessageList = ({ messages, onDelete, onReply, onReact, typing }: any) => {
           <MessageBubble
             id={item.id}
             message={item.text}
+            image={item.image}     
+            audio={item.audio}
             isMe={item.isMe}
             avatar={item.avatar}
             replyTo={item.replyTo}
