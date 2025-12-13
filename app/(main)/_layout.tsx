@@ -1,5 +1,5 @@
 import BackHeader from "@/component/BackHeader";
-import { router, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import React from "react";
 
 const MainLayout = () => {
@@ -8,7 +8,7 @@ const MainLayout = () => {
       <Stack.Screen
         name="profile/index"
         options={{
-          header: () => <BackHeader onBack={() => router.replace("/(tabs)")} />,
+          header: () => <BackHeader />,
         }}
       />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

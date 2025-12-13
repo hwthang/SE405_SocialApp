@@ -15,7 +15,17 @@ const FriendScreen = () => {
   const [isActive, setIsActive] = useState(0);
 
   return (
-    <View style={{ borderWidth: 1, marginBottom: 100, paddingBottom: 20, display:'flex', flex:1, marginTop:10 }}>
+    <View
+      style={{
+        borderWidth: 0,
+        marginBottom: 100,
+        paddingBottom: 20,
+        display: "flex",
+        flex: 1,
+        paddingTop: 10,
+        backgroundColor: "white",
+      }}
+    >
       {/* Tabs */}
       <View style={styles.tabContainer}>
         {tabs.map((item, index) => {
@@ -66,6 +76,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 10,
     paddingHorizontal: 16,
+    borderWidth:0
   },
   tabItem: {
     flex: 1,

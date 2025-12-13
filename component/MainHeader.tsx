@@ -1,5 +1,4 @@
 // import { Colors } from "@/constant/Color";
-import { Colors } from "@/constant/Colors";
 import { router } from "expo-router";
 import { WaypointsIcon } from "lucide-react-native";
 import React from "react";
@@ -29,11 +28,11 @@ const MainHeader = () => {
             gap: 8,
           }}
         >
-          <WaypointsIcon color={Colors.blue[500]} size={36} />
+          <WaypointsIcon color={'white'} size={36} />
           <Text
             style={{
               fontSize: 20,
-              color: Colors.blue[500],
+              color: 'white',
               fontWeight: "900",
               letterSpacing: 4,
             }}

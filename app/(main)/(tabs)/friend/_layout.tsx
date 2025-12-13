@@ -5,11 +5,12 @@ import React from "react";
 import { StyleSheet } from "react-native";
 
 const _layout = () => {
-  return <Stack >
-    <Stack.Screen name="index" options={{header:()=><MainHeader/>}}/>
-    <Stack.Screen name="map" options={{header:()=><BackHeader/>}}/>
-
-  </Stack>;
+  return (
+    <Stack>
+      <Stack.Screen name="index" options={{ header: () => <MainHeader /> }} />
+      <Stack.Screen name="map" options={{ header: () => <BackHeader /> }} />
+    </Stack>
+  );
 };
 
 export default _layout;

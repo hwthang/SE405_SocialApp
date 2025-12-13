@@ -8,7 +8,7 @@ const BackHeader = () => {
   return (
     <CustomHeader>
       <TouchableOpacity onPress={()=>router.back()}>
-        <ChevronLeft />
+        <ChevronLeft color={'white'}/>
       </TouchableOpacity>
     </CustomHeader>
   );
