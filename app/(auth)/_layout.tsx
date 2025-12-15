@@ -4,8 +4,8 @@ import React from "react";
 const AuthLayout = () => {
   return (
     <Stack>
-      <Stack.Screen name="login/index" />
-      <Stack.Screen name="register/index" />
+      <Stack.Screen name="login/index" options={{headerShown:false}}/>
+      <Stack.Screen name="register/index" options={{headerShown:false}}/>
     </Stack>
   );
 };

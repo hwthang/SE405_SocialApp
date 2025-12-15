@@ -1,3 +1,6 @@
+import { Api } from "@/helper/Api";
+import { AuthHelper } from "@/helper/AuthHelper";
+import { router } from "expo-router";
 import {
   Heart,
   MessageCircle,
@@ -18,134 +21,287 @@ import {
   View,
 } from "react-native";
 
-const MOCK_FRIENDS = [
-  { id: "1", name: "Nguyễn Văn A" },
-  { id: "2", name: "Trần Thị B" },
-  { id: "3", name: "Lê Văn C" },
-];
+/* ================= TYPES ================= */
 
-const INITIAL_COMMENTS = [
-  { id: "1", author: "Thắng", content: "Bài này hay quá nè 👏" },
-  { id: "2", author: "Minh", content: "Xem mà nhớ chuyến đi Đà Lạt ghê." },
-];
+type Comment = {
+  id: string;
+  content: string;
+  authorName: string;
 
-const PostActionBar = () => {
-  const [liked, setLiked] = useState(false);
+  parentId?: string | null;
+  children?: Comment[];
 
-  const [optionsVisible, setOptionsVisible] = useState(false);
+  liked: boolean;
+  likeCount: number;
+};
+
+type Props = {
+  postId: string;
+  initialLiked?: boolean;
+  initialLikeCount?: number;
+  commentCount?: number;
+};
+
+/* ================= COMPONENT ================= */
+
+const PostActionBar = ({
+  postId,
+  initialLiked = false,
+  initialLikeCount = 0,
+  commentCount = 0,
+}: Props) => {
+  /* ===== STATE ===== */
+  const [liked, setLiked] = useState(initialLiked);
+  const [likeCount, setLikeCount] = useState(initialLikeCount);
+
   const [commentVisible, setCommentVisible] = useState(false);
+  const [optionsVisible, setOptionsVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
 
-  const [comments, setComments] = useState(INITIAL_COMMENTS);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
+  const [replyTo, setReplyTo] = useState<string | null>(null);
 
-  const handleLike = () => {
-    setLiked((prev) => !prev);
+  /* ================= API HELPERS ================= */
+
+  const getAuthHeader = async () => {
+    const auth = AuthHelper.getInstance();
+    return {
+      Authorization: `Bearer ${await auth.getAccessToken()}`,
+      "Content-Type": "application/json",
+    };
   };
 
-  const handleComment = () => {
+  /* ================= LIKE POST ================= */
+
+  const handleLikePost = async () => {
+    const api = Api.getInstance();
+    const headers = await getAuthHeader();
+
+    setLiked((p) => !p);
+    setLikeCount((c) => (liked ? c - 1 : c + 1));
+
+    try {
+      if (!liked) {
+        await fetch(`${api.baseUrl}/reactions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            targetType: "POST",
+            targetId: postId,
+            type: "LOVE",
+          }),
+        });
+      } else {
+        await fetch(
+          `${api.baseUrl}/reactions?targetId=${postId}&targetType=POST`,
+          { method: "DELETE", headers }
+        );
+      }
+    } catch (e) {
+      console.log("Like post error", e);
+    }
+  };
+
+  /* ================= COMMENTS ================= */
+
+  const fetchComments = async () => {
+    const api = Api.getInstance();
+    const headers = await getAuthHeader();
+
+    const res = await fetch(
+      `${api.baseUrl}/posts/${postId}/comments`,
+      { headers }
+    );
+   const result  = await res.json();
+    const flat: Comment[] = result.data
+
+    // map 2 cấp
+    const map: Record<string, Comment> = {};
+    const roots: Comment[] = [];
+
+    flat.forEach((c) => (map[c.id] = { ...c, children: [] }));
+    flat.forEach((c) => {
+      if (c.parentId) {
+        map[c.parentId]?.children?.push(map[c.id]);
+      } else {
+        roots.push(map[c.id]);
+      }
+    });
+
+    setComments(roots);
+  };
+
+  const handleOpenComment = async () => {
     setCommentVisible(true);
+    if (comments.length === 0) await fetchComments();
   };
 
-  const handleShare = () => {
-    setShareVisible(true);
-  };
-
-  const toggleOptionsModal = () => {
-    setOptionsVisible((prev) => !prev);
-  };
-
-  const handleSendComment = () => {
+  const handleSendComment = async () => {
     if (!newComment.trim()) return;
-    setComments((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        author: "Bạn",
-        content: newComment.trim(),
-      },
-    ]);
+
+    const api = Api.getInstance();
+    const headers = await getAuthHeader();
+
+    await fetch(`${api.baseUrl}/posts/${postId}/comments`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        content: newComment,
+        parentCommentId: replyTo,
+      }),
+    });
+
     setNewComment("");
+    setReplyTo(null);
+    fetchComments();
   };
 
-  const handleShareToFriend = (friendName: string) => {
-    console.log(`Share post to ${friendName}`);
-    // TODO: call API share bài viết cho friendName
-    setShareVisible(false);
+  /* ================= LIKE COMMENT ================= */
+
+  const toggleLikeComment = async (commentId: string, liked: boolean) => {
+    const api = Api.getInstance();
+    const headers = await getAuthHeader();
+
+    setComments((prev) =>
+      prev.map((c) => ({
+        ...c,
+        children: c.children?.map((ch) =>
+          ch.id === commentId
+            ? {
+                ...ch,
+                liked: !liked,
+                likeCount: liked
+                  ? ch.likeCount - 1
+                  : ch.likeCount + 1,
+              }
+            : ch
+        ),
+        ...(c.id === commentId && {
+          liked: !liked,
+          likeCount: liked
+            ? c.likeCount - 1
+            : c.likeCount + 1,
+        }),
+      }))
+    );
+
+    if (!liked) {
+      await fetch(`${api.baseUrl}/reactions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          targetType: "COMMENT",
+          targetId: commentId,
+          type: "LOVE",
+        }),
+      });
+    } else {
+      await fetch(
+        `${api.baseUrl}/reactions?targetId=${commentId}&targetType=COMMENT`,
+        { method: "DELETE", headers }
+      );
+    }
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Like */}
-      <TouchableOpacity style={styles.actionItem} onPress={handleLike}>
-        <Heart
-          size={18}
-          strokeWidth={2}
-          color={liked ? "#e53935" : "#444"}
-          fill={liked ? "#e53935" : "transparent"}
-        />
-        <Text style={[styles.actionLabel, liked && styles.likedText]}>
-          Thích
-        </Text>
-      </TouchableOpacity>
+  /* ================= RENDER COMMENT ================= */
 
-      {/* Comment */}
-      <TouchableOpacity style={styles.actionItem} onPress={handleComment}>
-        <MessageCircle size={18} strokeWidth={2} color="#444" />
-        <Text style={styles.actionLabel}>Bình luận</Text>
-      </TouchableOpacity>
+  const renderComment = (comment: Comment) => (
+    <View key={comment.id} style={{ marginBottom: 12 }}>
+      <View style={styles.commentBubble}>
+        <Text style={styles.commentAuthor}>{comment.authorName}</Text>
+        <Text>{comment.content}</Text>
 
-      {/* Share */}
-      <TouchableOpacity style={styles.actionItem} onPress={handleShare}>
-        <Share2 size={18} strokeWidth={2} color="#444" />
-        <Text style={styles.actionLabel}>Chia sẻ</Text>
-      </TouchableOpacity>
+        <View style={styles.commentActions}>
+          <TouchableOpacity
+            onPress={() =>
+              toggleLikeComment(comment.id, comment.liked)
+            }
+          >
+            <Text style={styles.commentAction}>
+              ❤️ {comment.likeCount}
+            </Text>
+          </TouchableOpacity>
 
-      {/* More / Options */}
-      <TouchableOpacity style={styles.moreBtn} onPress={toggleOptionsModal}>
-        <MoreHorizontal size={20} strokeWidth={2} color="#444" />
-      </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setReplyTo(comment.id)}
+          >
+            <Text style={styles.commentAction}>Trả lời</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-      {/* ========== MODAL: TÙY CHỌN BÀI VIẾT ========== */}
-      <Modal
-        visible={optionsVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={toggleOptionsModal}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={toggleOptionsModal}>
-          <Pressable style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Tùy chọn bài viết</Text>
-
-            <TouchableOpacity style={styles.modalItem}>
-              <Text style={styles.modalItemText}>Lưu bài viết</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.modalItem}>
-              <Text style={styles.modalItemText}>Ẩn bài viết</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.modalItem}>
-              <Text style={styles.modalItemText}>Báo cáo</Text>
-            </TouchableOpacity>
+      {comment.children?.map((child) => (
+        <View key={child.id} style={styles.replyContainer}>
+          <View style={styles.commentBubble}>
+            <Text style={styles.commentAuthor}>
+              {child.authorName}
+            </Text>
+            <Text>{child.content}</Text>
 
             <TouchableOpacity
-              style={styles.modalCancel}
-              onPress={toggleOptionsModal}
+              onPress={() =>
+                toggleLikeComment(child.id, child.liked)
+              }
             >
-              <Text style={styles.modalCancelText}>Đóng</Text>
+              <Text style={styles.commentAction}>
+                ❤️ {child.likeCount}
+              </Text>
             </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
 
-      {/* ========== MODAL: BÌNH LUẬN ========== */}
-      <Modal
-        visible={commentVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCommentVisible(false)}
-      >
+  /* ================= RENDER ================= */
+
+  return (
+    <View>
+      {/* ACTION BAR */}
+      <View style={styles.container}>
+        <TouchableOpacity
+          style={styles.actionItem}
+          onPress={handleLikePost}
+        >
+          <Heart
+            size={18}
+            color={liked ? "#e53935" : "#444"}
+            fill={liked ? "#e53935" : "transparent"}
+          />
+          <Text style={styles.actionLabel}>
+            Thích {likeCount > 0 && `(${likeCount})`}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionItem}
+          onPress={()=>router.push('/(main)/postDetail/1')}
+        >
+          <MessageCircle size={18} color="#444" />
+          <Text style={styles.actionLabel}>
+            Bình luận {commentCount > 0 && `(${commentCount})`}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionItem}
+          onPress={() => setShareVisible(true)}
+        >
+          <Share2 size={18} color="#444" />
+          <Text style={styles.actionLabel}>Chia sẻ</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.moreBtn}
+          onPress={() => setOptionsVisible(true)}
+        >
+          <MoreHorizontal size={20} color="#444" />
+        </TouchableOpacity>
+      </View>
+
+      {/* COMMENT MODAL */}
+      <Modal visible={commentVisible} transparent animationType="slide">
         <Pressable
           style={styles.modalBackdrop}
           onPress={() => setCommentVisible(false)}
@@ -155,33 +311,22 @@ const PostActionBar = () => {
             style={styles.commentContainer}
           >
             <Pressable style={styles.commentContent}>
-              <Text style={styles.modalTitle}>Bình luận</Text>
-
               <FlatList
                 data={comments}
-                keyExtractor={(item) => item.id}
-                style={{ maxHeight: 260 }}
-                renderItem={({ item }) => (
-                  <View style={styles.commentItem}>
-                    <View style={styles.commentAvatar}>
-                      <Text style={styles.commentAvatarText}>
-                        {item.author.charAt(0)}
-                      </Text>
-                    </View>
-                    <View style={styles.commentBubble}>
-                      <Text style={styles.commentAuthor}>{item.author}</Text>
-                      <Text style={styles.commentText}>{item.content}</Text>
-                    </View>
-                  </View>
-                )}
+                keyExtractor={(i) => i.id}
+                renderItem={({ item }) => renderComment(item)}
               />
 
-              {/* Input bình luận */}
+              {replyTo && (
+                <Text style={styles.replyHint}>
+                  Đang trả lời bình luận
+                </Text>
+              )}
+
               <View style={styles.commentInputRow}>
                 <TextInput
                   style={styles.commentInput}
-                  placeholder="Thêm bình luận..."
-                  placeholderTextColor="#999"
+                  placeholder="Viết bình luận..."
                   value={newComment}
                   onChangeText={setNewComment}
                 />
@@ -193,58 +338,19 @@ const PostActionBar = () => {
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
-
-      {/* ========== MODAL: CHIA SẺ ========== */}
-      <Modal
-        visible={shareVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShareVisible(false)}
-      >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setShareVisible(false)}
-        >
-          <Pressable style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Chia sẻ tới bạn bè</Text>
-
-            {MOCK_FRIENDS.map((friend) => (
-              <TouchableOpacity
-                key={friend.id}
-                style={styles.shareFriendItem}
-                onPress={() => handleShareToFriend(friend.name)}
-              >
-                <View style={styles.friendAvatar}>
-                  <Text style={styles.friendAvatarText}>
-                    {friend.name.charAt(0)}
-                  </Text>
-                </View>
-                <Text style={styles.friendName}>{friend.name}</Text>
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity
-              style={styles.modalCancel}
-              onPress={() => setShareVisible(false)}
-            >
-              <Text style={styles.modalCancelText}>Hủy</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 };
 
 export default PostActionBar;
 
+/* ================= STYLES ================= */
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    alignItems: "center",
     justifyContent: "space-between",
+    padding: 8,
   },
   actionItem: {
     flexDirection: "row",
@@ -255,57 +361,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#444",
   },
-  likedText: {
-    color: "#e53935",
-    fontWeight: "600",
-  },
   moreBtn: {
     paddingHorizontal: 6,
-    paddingVertical: 4,
   },
-
-  // Modal backdrop
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
-
-  // Modal chung
-  modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  modalItem: {
-    paddingVertical: 10,
-  },
-  modalItemText: {
-    fontSize: 14,
-    color: "#222",
-  },
-  modalCancel: {
-    marginTop: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#eee",
-  },
-  modalCancelText: {
-    fontSize: 14,
-    color: "#007AFF",
-    fontWeight: "600",
-  },
-
-  // Comment modal
   commentContainer: {
     flex: 1,
     justifyContent: "flex-end",
@@ -314,90 +377,49 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  commentItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  commentAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#eee",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-  },
-  commentAvatarText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#555",
+    padding: 16,
+    maxHeight: "85%",
   },
   commentBubble: {
-    flex: 1,
     backgroundColor: "#f3f3f3",
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    padding: 10,
   },
   commentAuthor: {
-    fontSize: 12,
     fontWeight: "600",
     marginBottom: 2,
   },
-  commentText: {
-    fontSize: 13,
-    color: "#222",
+  commentActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 4,
+  },
+  commentAction: {
+    fontSize: 12,
+    color: "#666",
+  },
+  replyContainer: {
+    marginLeft: 32,
+    marginTop: 6,
   },
   commentInputRow: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#eee",
-    marginTop: 4,
+    marginTop: 8,
   },
   commentInput: {
     flex: 1,
-    fontSize: 14,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
     backgroundColor: "#f5f5f5",
     borderRadius: 16,
-    marginRight: 8,
+    paddingHorizontal: 12,
   },
   commentSend: {
-    fontSize: 14,
-    fontWeight: "600",
     color: "#007AFF",
-  },
-
-  // Share modal
-  shareFriendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  friendAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#eee",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  friendAvatarText: {
-    fontSize: 14,
     fontWeight: "600",
-    color: "#555",
+    marginLeft: 8,
   },
-  friendName: {
-    fontSize: 14,
-    color: "#222",
+  replyHint: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 4,
   },
 });

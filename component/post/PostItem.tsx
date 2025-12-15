@@ -5,28 +5,30 @@ import PostCaption from "./PostCaption";
 import PostHeader from "./PostHeader";
 import PostMedia from "./PostMedia";
 
-const PostItem = () => {
-  return (
-    <View
-      style={{
-        borderWidth: 0,
-        marginBottom: 20,
-        elevation: 0.5,
-       
-     
-      }}
-    >
-      <View style={{ borderWidth: 0,  padding: 10, }}>
-        <PostHeader />
-      </View>
-      <View style={{ borderWidth: 0, gap: 10 }}>
-        <PostCaption text="Hôm nay là một ngày thật kỳ lạ. Mình đi dạo một vòng thành phố, nghe vài bài nhạc cũ, uống ly cà phê đen quen thuộc, vậy mà cảm xúc lại khác hẳn mọi khi. Có những khoảnh khắc rất nhỏ thôi, như ánh nắng chiếu xuống con đường, hay tiếng gió lướt qua hàng cây, cũng đủ làm mình thấy lòng nhẹ hơn. Có lẽ chúng ta hay mải chạy theo những điều lớn lao mà quên mất rằng bình yên thật ra đến từ những điều rất giản dị. Chỉ cần chậm lại một chút, nhìn xung quanh một chút, là mọi thứ đã khác rồi.
-"/>
+type PostItemProps = {
+  post: any;
+};
 
-        <PostMedia />
+const PostItem = ({ post }: PostItemProps) => {
+  return (
+    <View style={styles.wrapper}>
+      {/* Header */}
+      <View style={styles.section}>
+        <PostHeader author={post.author} createdAt={post.createdAt} privacy={post.privacy}/>
       </View>
-      <View style={{ borderWidth: 0,  padding: 10, }}>
-        <PostActionBar />
+
+      {/* Content */}
+      <View style={styles.content}>
+        {post.text ? <PostCaption text={post.text} /> : null}
+
+        {post.media?.length > 0 ? (
+          <PostMedia media={post.media} />
+        ) : null}
+      </View>
+
+      {/* Action bar */}
+      <View style={styles.section}>
+        <PostActionBar postId={post.id} />
       </View>
     </View>
   );
@@ -34,4 +36,16 @@ const PostItem = () => {
 
 export default PostItem;
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  wrapper: {
+    marginBottom: 20,
+    backgroundColor: "#FFF",
+  },
+  section: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  content: {
+    gap: 10,
+  },
+});

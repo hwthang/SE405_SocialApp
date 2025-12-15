@@ -11,6 +11,12 @@ const MainLayout = () => {
           header: () => <BackHeader />,
         }}
       />
+      <Stack.Screen
+        name="postDetail/[id]"
+        options={{
+          header: () => <BackHeader />,
+        }}
+      />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );

@@ -165,7 +165,7 @@ export default function ChatDetailScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#f8f8f8" }}>
+    <View style={{ flex: 1, backgroundColor: "#f8f8f8", paddingBottom:200 }}>
       {/* HEADER */}
       <ChatHeader
         name="Nguyễn Văn A"

@@ -1,44 +1,45 @@
+
 import { getRelativeTimeFromISO } from "@/utils/date";
 import { UserLock, Users, UserStar } from "lucide-react-native";
 import React from "react";
-import {
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-const data = {
-  avatarUrl:
-    "https://res.cloudinary.com/diz9pqlzo/image/upload/v1765016620/481464988_1675623343373213_3008382985378437814_n_rpewet.jpg",
-  fullName: "Đặng Hữu Thắng",
-  postedAt: "2025-12-01T14:32:45.140+00:00",
-  scope: "public", // friend, private
-  canAddFriend: true,
+type Props = {
+  author: {
+    name: string;
+    avatarUrl?: string | null;
+  };
+  createdAt: string;
+  privacy: "PUBLIC" | "FRIENDS" | "PRIVATE";
+  canAddFriend?: boolean;
 };
 
-const PostHeader = () => {
-  const renderScope = (scope: string) => {
-    switch (scope) {
-      case "public":
+const PostHeader = ({
+  author,
+  createdAt,
+  privacy,
+  canAddFriend = false,
+}: Props) => {
+  const renderScope = () => {
+    switch (privacy) {
+      case "PUBLIC":
         return (
           <View style={styles.scopeContainer}>
-            <Users strokeWidth={1.75} size={15} />
+            <Users size={15} />
             <Text style={styles.scopeText}>Công khai</Text>
           </View>
         );
-      case "friend":
+      case "FRIENDS":
         return (
           <View style={styles.scopeContainer}>
-            <UserStar strokeWidth={2} size={15} />
+            <UserStar size={15} />
             <Text style={styles.scopeText}>Bạn bè</Text>
           </View>
         );
       default:
         return (
           <View style={styles.scopeContainer}>
-            <UserLock strokeWidth={2} size={15} />
+            <UserLock size={15} />
             <Text style={styles.scopeText}>Chỉ mình tôi</Text>
           </View>
         );
@@ -47,32 +48,32 @@ const PostHeader = () => {
 
   return (
     <View style={styles.container}>
-      {/* Avatar */}
-      <Image source={{ uri: data.avatarUrl }} style={styles.avatar} />
+      <Image
+        source={{
+          uri:
+            author.avatarUrl ||
+            "https://ui-avatars.com/api/?name=" +
+              encodeURIComponent(author.name),
+        }}
+        style={styles.avatar}
+      />
 
-      {/* Info */}
       <View style={styles.info}>
-        {/* Hàng trên: tên + nút thêm bạn */}
         <View style={styles.topRow}>
-          <Text style={styles.fullName}>{data.fullName}</Text>
+          <Text style={styles.fullName}>{author.name}</Text>
 
-          {data.canAddFriend && (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.addFriendButton}
-              // onPress={() => {}}
-            >
+          {canAddFriend && (
+            <TouchableOpacity style={styles.addFriendButton}>
               <Text style={styles.addFriendText}>Thêm bạn bè</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Hàng dưới: thời gian + scope */}
         <View style={styles.rowCenter}>
           <Text style={styles.timeText}>
-            {getRelativeTimeFromISO(data.postedAt)}
+            {getRelativeTimeFromISO(createdAt)}
           </Text>
-          {renderScope(data.scope)}
+          {renderScope()}
         </View>
       </View>
     </View>
@@ -80,6 +81,9 @@ const PostHeader = () => {
 };
 
 export default PostHeader;
+
+
+
 
 const styles = StyleSheet.create({
   container: {

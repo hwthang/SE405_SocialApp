@@ -10,64 +10,52 @@ import {
 } from "react-native";
 import MediaItem from "./MediaItem";
 
-const PostMedia = () => {
-  const { width: WIDTH } = useWindowDimensions();
-  const [activeIndex, setActiveIndex] = useState(0); // 0-based
+type Media = {
+  id: string;
+  type: "IMAGE" | "VIDEO";
+  url: string;
+};
 
-  const DATA = [
-    {
-      id: "1",
-      type: "img" as "img" | "video",
-      uri: "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg",
-    },
-    {
-      id: "2",
-      type: "video" as "img" | "video",
-      uri: "https://res.cloudinary.com/diz9pqlzo/video/upload/sp_auto/v1764791962/Screen_Recording_2025-11-27_055336_kvgcks.m3u8",
-    },
-    {
-      id: "3",
-      type: "img" as "img" | "video",
-      uri: "https://images.pexels.com/photos/34950/pexels-photo.jpg",
-    },
-    {
-      id: "4",
-      type: "video" as "img" | "video",
-      uri: "https://www.w3schools.com/html/mov_bbb.mp4",
-    },
-  ];
+type Props = {
+  media: Media[];
+};
 
-  const TOTAL = DATA.length;
+const PostMedia = ({ media }: Props) => {
+  const { width } = useWindowDimensions();
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetX = e.nativeEvent.contentOffset.x;
-    const viewWidth = e.nativeEvent.layoutMeasurement.width; // chính xác hơn WIDTH
-    const currentIndex = Math.round(offsetX / viewWidth); // 0-based
-    setActiveIndex(currentIndex);
+    const index = Math.round(
+      e.nativeEvent.contentOffset.x /
+        e.nativeEvent.layoutMeasurement.width
+    );
+    setActiveIndex(index);
   };
 
+  if (!media || media.length === 0) return null;
+
   return (
-    <View style={[styles.container, { width: WIDTH, height: 300 }]}>
-      {/* Index indicator */}
-      <View style={styles.indexContainer}>
-        <Text style={styles.indexText}>
-          {activeIndex + 1} / {TOTAL}
-        </Text>
-      </View>
+    <View style={[styles.container, { width, height: 300 }]}>
+      {media.length > 1 && (
+        <View style={styles.indexContainer}>
+          <Text style={styles.indexText}>
+            {activeIndex + 1} / {media.length}
+          </Text>
+        </View>
+      )}
 
       <FlatList
-        data={DATA}
+        data={media}
         horizontal
         pagingEnabled
-        showsHorizontalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
           <MediaItem
-            type={item.type}
-            uri={item.uri}
-            isActive={index === activeIndex} // 👈 chỉ slide đang visible mới play video
+            type={item.type === "VIDEO" ? "video" : "img"}
+            uri={item.url}
+            isActive={index === activeIndex}
           />
         )}
       />
@@ -76,6 +64,7 @@ const PostMedia = () => {
 };
 
 export default PostMedia;
+
 
 const styles = StyleSheet.create({
   container: {

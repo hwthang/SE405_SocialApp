@@ -1,8 +1,17 @@
 import * as ImagePicker from "expo-image-picker";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { Globe, ImagePlus, Lock, Send, Users, Video as VideoIcon, X } from "lucide-react-native";
+import {
+  Globe,
+  ImagePlus,
+  Lock,
+  Send,
+  Users,
+  Video as VideoIcon,
+  X,
+} from "lucide-react-native";
 import React, { useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   ScrollView,
@@ -12,6 +21,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+import { Api } from "@/helper/Api";
+import { AuthHelper } from "@/helper/AuthHelper";
+import UploadHelper from "@/helper/UploadHelper";
 
 // ---- Types ----
 type MediaType = "image" | "video";
@@ -23,7 +36,7 @@ interface MediaItem {
 
 type Scope = "public" | "friends" | "private";
 
-// ---- Media preview item (ảnh + video) ----
+// ---- Media preview item ----
 const MediaPreviewItem = ({
   item,
   index,
@@ -36,16 +49,21 @@ const MediaPreviewItem = ({
   if (item.type === "image") {
     return (
       <View style={styles.mediaWrapper}>
-        <Image source={{ uri: item.uri }} style={styles.media} resizeMode="cover" />
-
-        <TouchableOpacity style={styles.removeBtn} onPress={() => onRemove(index)}>
+        <Image
+          source={{ uri: item.uri }}
+          style={styles.media}
+          resizeMode="cover"
+        />
+        <TouchableOpacity
+          style={styles.removeBtn}
+          onPress={() => onRemove(index)}
+        >
           <X size={16} color="#fff" />
         </TouchableOpacity>
       </View>
     );
   }
 
-  // Video preview (mute + loop)
   const player = useVideoPlayer(item.uri, (p) => {
     p.loop = true;
     p.muted = true;
@@ -62,7 +80,10 @@ const MediaPreviewItem = ({
         allowsPictureInPicture={false}
       />
 
-      <TouchableOpacity style={styles.removeBtn} onPress={() => onRemove(index)}>
+      <TouchableOpacity
+        style={styles.removeBtn}
+        onPress={() => onRemove(index)}
+      >
         <X size={16} color="#fff" />
       </TouchableOpacity>
 
@@ -77,8 +98,9 @@ const CreatePostScreen = () => {
   const [content, setContent] = useState("");
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [scope, setScope] = useState<Scope>("public");
+  const [loading, setLoading] = useState(false);
 
-  // Chọn media từ thư viện
+  // ---- Pick media ----
   const handlePickMedia = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
@@ -100,9 +122,72 @@ const CreatePostScreen = () => {
     setMedia((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmitPost = () => {
-    console.log("New post:", { content, media, scope });
-    // TODO: call API create post
+  // ---- Convert Expo asset → file upload ----
+  const buildUploadFile = (item: MediaItem, index: number) => {
+    const isVideo = item.type === "video";
+
+    return {
+      uri: item.uri,
+      type: isVideo ? "video/mp4" : "image/jpeg",
+      name: isVideo ? `video_${index}.mp4` : `image_${index}.jpg`,
+    } as any;
+  };
+
+  // ---- Submit post ----
+  const handleSubmitPost = async () => {
+    try {
+      if (!content.trim() && media.length === 0) {
+        Alert.alert("Thông báo", "Nội dung hoặc media không được trống");
+        return;
+      }
+
+      setLoading(true);
+
+      const uploader = UploadHelper.getInstance();
+
+      // 1. Upload media
+      const uploadedMedia = await Promise.all(
+        media.map((item, index) =>
+          uploader.getMediaObject(buildUploadFile(item, index))
+        )
+      );
+
+      console.log({
+        text: content,
+        privacy: scope.toUpperCase(),
+        media: uploadedMedia,
+      });
+      const auth = AuthHelper.getInstance();
+      // 2. Call API create post
+      const res = await fetch(`${Api.getInstance().baseUrl}/posts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${await auth.getAccessToken()}`,
+        },
+        body: JSON.stringify({
+          text: content,
+          privacy: scope.toUpperCase(),
+          media: uploadedMedia,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Create post failed");
+      }
+
+      // 3. Reset
+      setContent("");
+      setMedia([]);
+      setScope("public");
+
+      Alert.alert("Thành công", "Bài viết đã được đăng");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Lỗi", "Không thể đăng bài");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const scopeLabel = {
@@ -115,79 +200,38 @@ const CreatePostScreen = () => {
     <ScrollView style={styles.container}>
       <Text style={styles.heading}>Tạo bài viết</Text>
 
-      {/* Scope selector */}
+      {/* Scope */}
       <View style={styles.scopeRow}>
         <Text style={styles.scopeLabel}>Chế độ hiển thị:</Text>
         <View style={styles.scopeButtonsRow}>
-          <TouchableOpacity
-            style={[
-              styles.scopeButton,
-              scope === "public" && styles.scopeButtonActive,
-            ]}
-            onPress={() => setScope("public")}
-          >
-            <Globe
-              size={16}
-              strokeWidth={2}
-              color={scope === "public" ? "#007AFF" : "#444"}
-            />
-            <Text
+          {[
+            { key: "public", label: "Công khai", Icon: Globe },
+            { key: "friends", label: "Bạn bè", Icon: Users },
+            { key: "private", label: "Riêng tư", Icon: Lock },
+          ].map(({ key, label, Icon }) => (
+            <TouchableOpacity
+              key={key}
               style={[
-                styles.scopeButtonText,
-                scope === "public" && styles.scopeButtonTextActive,
+                styles.scopeButton,
+                scope === key && styles.scopeButtonActive,
               ]}
+              onPress={() => setScope(key as Scope)}
             >
-              Công khai
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.scopeButton,
-              scope === "friends" && styles.scopeButtonActive,
-            ]}
-            onPress={() => setScope("friends")}
-          >
-            <Users
-              size={16}
-              strokeWidth={2}
-              color={scope === "friends" ? "#007AFF" : "#444"}
-            />
-            <Text
-              style={[
-                styles.scopeButtonText,
-                scope === "friends" && styles.scopeButtonTextActive,
-              ]}
-            >
-              Bạn bè
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.scopeButton,
-              scope === "private" && styles.scopeButtonActive,
-            ]}
-            onPress={() => setScope("private")}
-          >
-            <Lock
-              size={16}
-              strokeWidth={2}
-              color={scope === "private" ? "#007AFF" : "#444"}
-            />
-            <Text
-              style={[
-                styles.scopeButtonText,
-                scope === "private" && styles.scopeButtonTextActive,
-              ]}
-            >
-              Riêng tư
-            </Text>
-          </TouchableOpacity>
+              <Icon size={16} color={scope === key ? "#007AFF" : "#444"} />
+              <Text
+                style={[
+                  styles.scopeButtonText,
+                  scope === key && styles.scopeButtonTextActive,
+                ]}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      {/* Caption input */}
+      {/* Caption */}
       <TextInput
         style={styles.input}
         placeholder={`Bạn đang nghĩ gì? (${scopeLabel})`}
@@ -197,7 +241,7 @@ const CreatePostScreen = () => {
         onChangeText={setContent}
       />
 
-      {/* Media preview */}
+      {/* Media */}
       {media.length > 0 && (
         <View style={styles.mediaContainer}>
           <FlatList
@@ -206,22 +250,32 @@ const CreatePostScreen = () => {
             scrollEnabled={false}
             keyExtractor={(_, i) => i.toString()}
             renderItem={({ item, index }) => (
-              <MediaPreviewItem item={item} index={index} onRemove={removeMedia} />
+              <MediaPreviewItem
+                item={item}
+                index={index}
+                onRemove={removeMedia}
+              />
             )}
           />
         </View>
       )}
 
-      {/* Add media button */}
+      {/* Pick media */}
       <TouchableOpacity style={styles.pickBtn} onPress={handlePickMedia}>
         <ImagePlus size={20} color="#007AFF" />
         <Text style={styles.pickText}>Thêm ảnh/video</Text>
       </TouchableOpacity>
 
       {/* Submit */}
-      <TouchableOpacity style={styles.submitBtn} onPress={handleSubmitPost}>
+      <TouchableOpacity
+        style={[styles.submitBtn, loading && { opacity: 0.6 }]}
+        onPress={handleSubmitPost}
+        disabled={loading}
+      >
         <Send size={18} color="#fff" />
-        <Text style={styles.submitText}>Đăng bài</Text>
+        <Text style={styles.submitText}>
+          {loading ? "Đang đăng..." : "Đăng bài"}
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -229,6 +283,7 @@ const CreatePostScreen = () => {
 
 export default CreatePostScreen;
 
+// ---- Styles ----
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -241,19 +296,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
-  // Scope
-  scopeRow: {
-    marginBottom: 8,
-  },
-  scopeLabel: {
-    fontSize: 13,
-    color: "#555",
-    marginBottom: 4,
-  },
-  scopeButtonsRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
+  scopeRow: { marginBottom: 8 },
+  scopeLabel: { fontSize: 13, color: "#555", marginBottom: 4 },
+  scopeButtonsRow: { flexDirection: "row", gap: 6 },
+
   scopeButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -268,14 +314,8 @@ const styles = StyleSheet.create({
     borderColor: "#007AFF33",
     backgroundColor: "#E5F0FF",
   },
-  scopeButtonText: {
-    fontSize: 12,
-    color: "#444",
-  },
-  scopeButtonTextActive: {
-    color: "#007AFF",
-    fontWeight: "600",
-  },
+  scopeButtonText: { fontSize: 12, color: "#444" },
+  scopeButtonTextActive: { color: "#007AFF", fontWeight: "600" },
 
   input: {
     minHeight: 120,
@@ -284,14 +324,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: "#f5f5f5",
     color: "#222",
-    textAlignVertical: "top",
     marginTop: 8,
   },
 
-  // Media preview grid
-  mediaContainer: {
-    marginTop: 16,
-  },
+  mediaContainer: { marginTop: 16 },
   mediaWrapper: {
     width: "33%",
     aspectRatio: 1,
@@ -311,7 +347,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     padding: 4,
     borderRadius: 20,
-    zIndex: 10,
   },
   videoTag: {
     position: "absolute",
@@ -333,10 +368,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
     padding: 10,
   },
-  pickText: {
-    fontSize: 16,
-    color: "#007AFF",
-  },
+  pickText: { fontSize: 16, color: "#007AFF" },
 
   submitBtn: {
     marginTop: 24,
@@ -348,9 +380,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  submitText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  submitText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });
