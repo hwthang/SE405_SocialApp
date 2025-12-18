@@ -12,6 +12,18 @@ const MainLayout = () => {
         }}
       />
       <Stack.Screen
+        name="option/index"
+        options={{
+          header: () => <BackHeader />,
+        }}
+      />
+         <Stack.Screen
+        name="qr/index"
+        options={{
+          header: () => <BackHeader />,
+        }}
+      />
+      <Stack.Screen
         name="postDetail/[id]"
         options={{
           header: () => <BackHeader />,

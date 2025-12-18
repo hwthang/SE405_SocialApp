@@ -53,7 +53,7 @@ const HomeScreen = () => {
 
         /** 🔽 PULL TO REFRESH */
         refreshing={loading}
-        onRefresh={fetchPostItems}
+        onRefresh={()=>fetchPostItems()}
       />
     </View>
   );

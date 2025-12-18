@@ -1,7 +1,11 @@
+import { Api } from "@/helper/Api";
+import { AuthHelper } from "@/helper/AuthHelper";
+import { Avatars } from "@/public/img/avatar"; // Đảm bảo bạn có avatar mặc định
 import { router } from "expo-router";
 import { MapPin, MessageCircle } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   StyleSheet,
@@ -12,35 +16,51 @@ import {
 } from "react-native";
 import TagChips from "./TagChip";
 
-// Fake dữ liệu (đổi thành API)
-const friendList = [
-  {
-    id: 1,
-    name: "Nguyễn Văn A",
-    avatar: "https://i.pravatar.cc/150?img=1",
-    status: "online",
-  },
-  {
-    id: 2,
-    name: "Trần Thị B",
-    avatar: "https://i.pravatar.cc/150?img=2",
-    status: "offline",
-  },
-  {
-    id: 3,
-    name: "Lê Văn C",
-    avatar: "https://i.pravatar.cc/150?img=3",
-    status: "online",
-  },
-];
-
-const FriendListSection = ({ navigation }: { navigation?: any }) => {
+const FriendListSection = () => {
   const [searchText, setSearchText] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "online" | "offline"
-  >("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all");
+  
+  // Quản lý danh sách bạn bè từ API
+  const [friends, setFriends] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredList = friendList.filter((friend) => {
+  const fetchFriends = async () => {
+    try {
+      setLoading(true);
+      const token = await AuthHelper.getInstance().getAccessToken();
+      const response = await fetch(`${Api.getInstance().baseUrl}/friends`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const result = await response.json();
+      
+      if (result.data) {
+        // Ánh xạ dữ liệu từ API sang cấu trúc hiển thị
+        const formattedFriends = result.data.map((item: any) => ({
+          id: item.friendId, // Sử dụng friendId từ API
+          name: item.name,
+          // Nếu avatarUrl null thì dùng ảnh mặc định
+          avatar: item.avatarUrl ? { uri: item.avatarUrl } : Avatars.cat,
+          status: item.isOnline ? "online" : "offline", // Giả định API trả về trạng thái này
+        }));
+        setFriends(formattedFriends);
+      }
+    } catch (error) {
+      console.error("Lỗi fetchFriends:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFriends();
+  }, []);
+
+  // Lọc danh sách dựa trên State 'friends'
+  const filteredList = friends.filter((friend) => {
     const matchesSearch = friend.name
       .toLowerCase()
       .includes(searchText.toLowerCase());
@@ -49,11 +69,18 @@ const FriendListSection = ({ navigation }: { navigation?: any }) => {
     return matchesSearch && matchesStatus;
   });
 
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="small" color="#007AFF" />
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1 }}>
       {/* Toolbar */}
       <View style={styles.toolbar}>
-        {/* Hàng 1: Search */}
         <View style={{ width: "100%" }}>
           <TextInput
             style={styles.searchInput}
@@ -63,7 +90,6 @@ const FriendListSection = ({ navigation }: { navigation?: any }) => {
           />
         </View>
 
-        {/* Hàng 2: Filter + Map */}
         <View style={styles.filterRow}>
           <View style={styles.filterContainer}>
             {["all", "online", "offline"].map((status) => (
@@ -103,15 +129,20 @@ const FriendListSection = ({ navigation }: { navigation?: any }) => {
       {/* Danh sách bạn bè */}
       <FlatList
         data={filteredList}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={{
           gap: 12,
           paddingHorizontal: 16,
           paddingBottom: 16,
         }}
+        ListEmptyComponent={
+          <Text style={{ textAlign: "center", marginTop: 20, color: "#999" }}>
+            Không tìm thấy bạn bè nào.
+          </Text>
+        }
         renderItem={({ item }) => (
           <View style={styles.friendItem}>
-            <Image source={{ uri: item.avatar }} style={styles.avatar} />
+            <Image source={item.avatar} style={styles.avatar} />
 
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{item.name}</Text>
@@ -131,7 +162,10 @@ const FriendListSection = ({ navigation }: { navigation?: any }) => {
               />
             </View>
 
-            <TouchableOpacity style={styles.messageBtn}>
+            <TouchableOpacity 
+              style={styles.messageBtn}
+              onPress={() => {}} // Điều hướng tới chat
+            >
               <MessageCircle size={18} color="#007AFF" />
               <Text style={styles.messageText}>Nhắn tin</Text>
             </TouchableOpacity>
@@ -145,9 +179,9 @@ const FriendListSection = ({ navigation }: { navigation?: any }) => {
 export default FriendListSection;
 
 const styles = StyleSheet.create({
+  // Giữ nguyên các styles cũ của bạn...
   toolbar: {
     flexDirection: "column",
-    alignItems: "flex-start",
     paddingHorizontal: 16,
     paddingVertical: 10,
     backgroundColor: "white",
@@ -156,12 +190,11 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     width: "100%",
-    backgroundColor: "#fff",
+    backgroundColor: "#f0f2f5", // Màu nhẹ hơn cho hiện đại
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 40,
-    borderWidth: 1,
-    borderColor: "#ddd",
+    borderWidth: 0,
   },
   filterRow: {
     flexDirection: "row",
@@ -199,8 +232,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  container: {},
   friendItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -214,7 +245,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 48,
     height: 48,
-    borderRadius: 999,
+    borderRadius: 24,
   },
   name: {
     fontSize: 16,

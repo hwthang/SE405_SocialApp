@@ -1,3 +1,4 @@
+import { Colors } from "@/constant/Colors";
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import PostActionBar from "./PostActionBar";
@@ -40,6 +41,8 @@ const styles = StyleSheet.create({
   wrapper: {
     marginBottom: 20,
     backgroundColor: "#FFF",
+    borderWidth:1,
+    borderColor:Colors.gray[100]
   },
   section: {
     paddingHorizontal: 10,

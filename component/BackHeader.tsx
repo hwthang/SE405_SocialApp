@@ -7,7 +7,7 @@ import CustomHeader from "./custom/CustomHeader";
 const BackHeader = () => {
   return (
     <CustomHeader>
-      <TouchableOpacity onPress={()=>router.back()}>
+      <TouchableOpacity onPress={()=>router.replace('/(main)/(tabs)/home')}>
         <ChevronLeft color={'white'}/>
       </TouchableOpacity>
     </CustomHeader>

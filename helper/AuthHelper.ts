@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 
 export class AuthHelper {
   private static instance: AuthHelper;
@@ -26,6 +27,11 @@ export class AuthHelper {
     this._isAdmin = isAdmin;
   }
 
+  public async logOut(){
+   await AsyncStorage.removeItem(AuthHelper.ACCESS_TOKEN_KEY);
+   router.replace('/(auth)/login')
+  }
+
   // ---- Access Token ----
   public async setAccessToken(token: string | null) {
     this._accessToken = token;
@@ -47,4 +53,7 @@ export class AuthHelper {
 
     return token;
   }
+
+
+  
 }
