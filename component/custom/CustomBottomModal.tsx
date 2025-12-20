@@ -1,11 +1,10 @@
 import React from "react";
 import {
-  Modal,
   Platform,
-  Pressable,
   StyleSheet,
-  View,
+  View
 } from "react-native";
+import Modal from "react-native-modal";
 
 type Props = {
   visible: boolean;
@@ -22,35 +21,34 @@ export const CustomBottomModal = ({
 }: Props) => {
   return (
     <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
+      isVisible={visible}
+      onBackdropPress={onClose}
+      onBackButtonPress={onClose}
+      swipeDirection="down"
+      onSwipeComplete={onClose}
+      animationIn="slideInUp"
+      animationOut="slideOutDown"
+      backdropOpacity={0.4}
+      style={styles.modal}
+      useNativeDriver
+      hideModalContentWhileAnimating
       statusBarTranslucent
-      onRequestClose={onClose}
     >
-      {/* BACKDROP */}
-      <Pressable style={styles.backdrop} onPress={onClose} />
-
       {/* BOTTOM MODAL */}
-      <View style={styles.wrapper}>
-        <View style={[styles.container, { height }]}>
-          {children}
-        </View>
+      <View style={[styles.container, { height }]}>
+        {/* Drag indicator */}
+        <View style={styles.dragIndicator} />
+
+        {children}
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-
-  wrapper: {
-    position: "absolute",
-    bottom: 0,
-    width: "100%",
+  modal: {
+    justifyContent: "flex-end",
+    margin: 0, // ❗ bắt buộc để modal sát đáy
   },
 
   container: {
@@ -59,11 +57,17 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 16,
     overflow: "hidden",
 
-    // ❗ RẤT QUAN TRỌNG
-    // KHÔNG flex:1
-    // height được truyền từ props
     ...(Platform.OS === "android" && {
       elevation: 8,
     }),
+  },
+
+  dragIndicator: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#ccc",
+    alignSelf: "center",
+    marginVertical: 10,
   },
 });

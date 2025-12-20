@@ -12,6 +12,13 @@ const MainLayout = () => {
         }}
       />
       <Stack.Screen
+        name="map/index"
+        options={{
+          header: () => <BackHeader />,
+        }}
+      />
+
+        <Stack.Screen
         name="option/index"
         options={{
           header: () => <BackHeader />,
@@ -27,6 +34,12 @@ const MainLayout = () => {
         name="postDetail/[id]"
         options={{
           header: () => <BackHeader />,
+        }}
+      />
+      <Stack.Screen
+        name="conversationDetail/[id]"
+        options={{
+          headerShown:false,
         }}
       />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

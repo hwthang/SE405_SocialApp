@@ -40,7 +40,7 @@
 
 // export default ConversationItem;
 
-
+import { Avatars } from "@/public/img/avatar";
 import React from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 
@@ -66,7 +66,7 @@ const ConversationItem = ({
     >
       <View>
         <Image
-          source={{ uri: avatar }}
+          source={avatar ? { uri: avatar } : Avatars.cat}
           style={{ width: 55, height: 55, borderRadius: 50 }}
         />
 

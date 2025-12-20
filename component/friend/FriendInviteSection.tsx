@@ -38,6 +38,7 @@ const FriendInvitationSection = () => {
       if (result.data) {
         const formattedData = result.data.map((item: any) => ({
           id: item.id,
+          fromId: item.fromUserId,
           name: item.fromUser?.name || "Người dùng lạ",
           avatar: item.fromUser?.avatarUrl
             ? { uri: item.fromUser.avatarUrl }
@@ -58,7 +59,11 @@ const FriendInvitationSection = () => {
     fetchInvitations();
   }, []);
 
-  const handleFriendRequest = async (id: string, action: "accept" | "reject") => {
+  const handleFriendRequest = async (
+    id: string,
+    fromId: string,
+    action: "accept" | "reject"
+  ) => {
     if (processingIds.includes(id)) return;
 
     try {
@@ -79,13 +84,32 @@ const FriendInvitationSection = () => {
 
       if (response.ok && !result.error) {
         const targetUser = invitations.find((item) => item.id === id);
-        
+
         if (action === "accept") {
           Toast.show({
             type: "success",
             text1: "🎉 +1 bạn bè nhó",
             text2: `${targetUser?.name} đã trở thành bạn bè`,
           });
+
+          const response = await fetch(
+            `${Api.getInstance().baseUrl}/conversations`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                type: "DIRECT",
+                otherUserId: fromId,
+              }),
+            }
+          );
+
+          const result = await response.json();
+
+          console.log(result);
         }
         // Xóa khỏi danh sách UI
         setInvitations((prev) => prev.filter((item) => item.id !== id));
@@ -110,10 +134,10 @@ const FriendInvitationSection = () => {
       `Bạn có chắc chắn muốn xóa lời mời kết bạn từ ${name} không?`,
       [
         { text: "Hủy", style: "cancel" },
-        { 
-          text: "Xóa", 
-          style: "destructive", 
-          onPress: () => handleFriendRequest(id, "reject") 
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: () => handleFriendRequest(id, "", "reject"),
         },
       ]
     );
@@ -160,16 +184,29 @@ const FriendInvitationSection = () => {
 
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <View style={{ marginBottom: 6 }}>
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: "#1C1E21" }}>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      color: "#1C1E21",
+                    }}
+                  >
                     {item.name}
                   </Text>
                   <View style={{ marginTop: 2 }}>
                     <TagChips
                       tags={[
                         ...(item.mutualFriends > 0
-                          ? [{ key: "mutual", value: `${item.mutualFriends} bạn chung` }]
+                          ? [
+                              {
+                                key: "mutual",
+                                value: `${item.mutualFriends} bạn chung`,
+                              },
+                            ]
                           : []),
-                        ...(item.nearby ? [{ key: "nearby", value: "Gần bạn" }] : []),
+                        ...(item.nearby
+                          ? [{ key: "nearby", value: "Gần bạn" }]
+                          : []),
                       ]}
                       maxDisplay={2}
                     />
@@ -179,7 +216,9 @@ const FriendInvitationSection = () => {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <TouchableOpacity
                     disabled={isProcessing}
-                    onPress={() => handleFriendRequest(item.id, "accept")}
+                    onPress={() =>
+                      handleFriendRequest(item.id, item.fromId, "accept")
+                    }
                     style={{
                       flex: 1,
                       height: 36,
@@ -192,7 +231,13 @@ const FriendInvitationSection = () => {
                     {isProcessing ? (
                       <ActivityIndicator size="small" color="white" />
                     ) : (
-                      <Text style={{ color: "white", fontSize: 14, fontWeight: "600" }}>
+                      <Text
+                        style={{
+                          color: "white",
+                          fontSize: 14,
+                          fontWeight: "600",
+                        }}
+                      >
                         Chấp nhận
                       </Text>
                     )}
@@ -210,7 +255,13 @@ const FriendInvitationSection = () => {
                       alignItems: "center",
                     }}
                   >
-                    <Text style={{ color: "#050505", fontSize: 14, fontWeight: "600" }}>
+                    <Text
+                      style={{
+                        color: "#050505",
+                        fontSize: 14,
+                        fontWeight: "600",
+                      }}
+                    >
                       Xóa
                     </Text>
                   </TouchableOpacity>

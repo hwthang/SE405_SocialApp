@@ -18,8 +18,10 @@ import TagChips from "./TagChip";
 
 const FriendListSection = () => {
   const [searchText, setSearchText] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all");
-  
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "online" | "offline"
+  >("all");
+
   // Quản lý danh sách bạn bè từ API
   const [friends, setFriends] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ const FriendListSection = () => {
       });
 
       const result = await response.json();
-      
+
       if (result.data) {
         // Ánh xạ dữ liệu từ API sang cấu trúc hiển thị
         const formattedFriends = result.data.map((item: any) => ({
@@ -119,7 +121,7 @@ const FriendListSection = () => {
 
           <TouchableOpacity
             style={styles.mapBtn}
-            onPress={() => router.push("/(main)/(tabs)/friend/map?mode=nearby")}
+            onPress={() => router.push("/(main)/map")}
           >
             <MapPin size={24} color="#fff" />
           </TouchableOpacity>
@@ -162,7 +164,7 @@ const FriendListSection = () => {
               />
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.messageBtn}
               onPress={() => {}} // Điều hướng tới chat
             >

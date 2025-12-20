@@ -3,12 +3,10 @@ import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import EmojiSelector from "react-native-emoji-selector";
 
@@ -18,7 +16,7 @@ export type InputBarProps = {
   onSend: () => void;
   onTyping?: (isTyping: boolean) => void;
   onSendImage: (uri: string) => void;
-  onRecordVoice: (uri: string) => void; // nhận uri file âm thanh
+  onRecordVoice: (uri: string) => void;
 };
 
 const InputBar = ({
@@ -34,34 +32,30 @@ const InputBar = ({
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordStartAt, setRecordStartAt] = useState<number | null>(null);
-  const timerRef = useRef<number | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | any>(null);
   const [recordDuration, setRecordDuration] = useState(0);
 
   useEffect(() => {
     return () => {
-      // cleanup timer on unmount
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
 
   const togglePanel = () => {
-    setOpenPanel((prev) => !prev);
+    setOpenPanel((p) => !p);
     setOpenEmoji(false);
   };
 
   const toggleEmoji = () => {
-    setOpenEmoji((prev) => !prev);
+    setOpenEmoji((p) => !p);
     setOpenPanel(false);
   };
 
   const hasText = (value || "").trim().length > 0;
 
-  /* ===== BẮT ĐẦU GHI ===== */
+  /* ===== RECORD ===== */
   const startRecording = async () => {
     try {
-      // nếu đang ghi thì ignore
       if (isRecording) return;
 
       const permission = await Audio.requestPermissionsAsync();
@@ -84,200 +78,175 @@ const InputBar = ({
       setRecordStartAt(Date.now());
       setRecordDuration(0);
 
-      // start simple timer to show duration (optional)
       timerRef.current = setInterval(() => {
-        if (recordStartAt) {
-          setRecordDuration(Math.floor((Date.now() - recordStartAt) / 1000));
-        } else {
-          setRecordDuration((d) => d + 1);
-        }
-      }, 500) as unknown as number;
-    } catch (err) {
-      console.error("startRecording error", err);
+        setRecordDuration((d) => d + 1);
+      }, 1000);
+    } catch (e) {
+      console.error("startRecording error", e);
       setIsRecording(false);
     }
   };
 
-  /* ===== DỪNG GHI & GỬI ===== */
   const stopRecording = async () => {
     try {
       if (!recording) return;
 
-      setIsRecording(false);
-
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
 
-      // clear timer
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-      setRecordStartAt(null);
-      setRecordDuration(0);
 
+      setIsRecording(false);
       setRecording(null);
+      setRecordDuration(0);
+      setRecordStartAt(null);
 
-      if (uri) {
-        // gọi callback cha
-        onRecordVoice(uri);
-      }
-    } catch (err) {
-      console.error("stopRecording error", err);
+      if (uri) onRecordVoice(uri);
+    } catch (e) {
+      console.error("stopRecording error", e);
     }
   };
 
-  /* ===== CHỌN ẢNH ===== */
+  /* ===== IMAGE ===== */
   const pickImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.7,
-      });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+    });
 
-      // SDK mới trả về { canceled: boolean, assets: [...] }
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        onSendImage(result.assets[0].uri);
-      }
-    } catch (err) {
-      console.error("pickImage error", err);
+    if (!result.canceled && result.assets?.length) {
+      onSendImage(result.assets[0].uri);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
-    >
-      <View style={{ backgroundColor: "white" }}>
-        {/* EMOJI PICKER */}
-        {openEmoji && (
-          <View style={{ height: 250 }}>
-            <EmojiSelector
-              onEmojiSelected={(emoji: string) => onChange((value || "") + emoji)}
-              showTabs
-              showHistory
-              showSearchBar={false}
-              columns={9}
-            />
-          </View>
-        )}
+    <>
+      {/* EMOJI */}
+      {openEmoji && (
+        <View style={{ height: 260 }}>
+          <EmojiSelector
+            onEmojiSelected={(emoji) =>
+              onChange((value || "") + emoji)
+            }
+            showTabs
+            showHistory
+            showSearchBar={false}
+            columns={9}
+          />
+        </View>
+      )}
 
-        {/* PANEL OPTION */}
-        {openPanel && (
-          <View
-            style={{
-              flexDirection: "row",
-              padding: 15,
-              gap: 30,
-              justifyContent: "center",
-              borderTopColor: "#ddd",
-              borderTopWidth: 1,
-            }}
-          >
-            <TouchableOpacity onPress={pickImage}>
-              <Ionicons name="image-outline" size={34} color="#ff4f9a" />
-            </TouchableOpacity>
-
-            {!isRecording ? (
-              <TouchableOpacity onPress={startRecording}>
-                <Ionicons name="mic-outline" size={34} color="#ff4f9a" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity onPress={stopRecording}>
-                <Ionicons name="stop-circle" size={34} color="red" />
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity onPress={toggleEmoji}>
-              <Ionicons name="happy-outline" size={34} color="#ff4f9a" />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* RECORDING STATUS BAR */}
-        {isRecording && (
-          <View
-            style={{
-              padding: 12,
-              backgroundColor: "#ffe3e3",
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "red", fontWeight: "bold" }}>
-              🎙️ Đang ghi âm... {recordDuration}s
-            </Text>
-          </View>
-        )}
-
-        {/* INPUT ROW */}
+      {/* PANEL */}
+      {openPanel && (
         <View
           style={{
             flexDirection: "row",
-            alignItems: "center",
-            paddingHorizontal: 10,
-            paddingVertical: 8,
+            padding: 15,
+            gap: 30,
+            justifyContent: "center",
             borderTopWidth: 1,
             borderColor: "#ddd",
           }}
         >
-          <TouchableOpacity onPress={togglePanel} style={{ paddingRight: 8 }}>
-            <Ionicons
-              name={openPanel ? "close" : "add-circle-outline"}
-              size={30}
-              color="#ff4f9a"
-            />
+          <TouchableOpacity onPress={pickImage}>
+            <Ionicons name="image-outline" size={34} color="#ff4f9a" />
           </TouchableOpacity>
 
-          <TextInput
-            value={value}
-            multiline
-            onChangeText={(text) => {
-              onChange(text);
-              onTyping?.(true);
-              setTimeout(() => onTyping?.(false), 1200);
-            }}
-            placeholder="Aa"
-            style={{
-              flex: 1,
-              fontSize: 16,
-              paddingHorizontal: 14,
-              marginHorizontal: 10,
-              backgroundColor: "#f1f1f1",
-              borderRadius: 25,
-              maxHeight: 100,
-            }}
-            onFocus={() => {
-              setOpenPanel(false);
-              setOpenEmoji(false);
-            }}
-          />
-
-          {/* BUTTON: nếu đang ghi thì show stop, nếu có text show send, nếu không có text show mic (bắt đầu ghi) */}
           <TouchableOpacity
-            onPress={() => {
-              if (isRecording) {
-                // nếu đang ghi ở bất kỳ đâu thì stop
-                stopRecording();
-              } else if (hasText) {
-                onSend();
-              } else {
-                // start recording directly from input
-                startRecording();
-              }
-              setOpenPanel(false);
-              setOpenEmoji(false);
-            }}
+            onPress={isRecording ? stopRecording : startRecording}
           >
             <Ionicons
-              name={isRecording ? "stop-circle" : hasText ? "send" : "mic-outline"}
-              size={28}
+              name={isRecording ? "stop-circle" : "mic-outline"}
+              size={34}
               color={isRecording ? "red" : "#ff4f9a"}
             />
           </TouchableOpacity>
+
+          <TouchableOpacity onPress={toggleEmoji}>
+            <Ionicons name="happy-outline" size={34} color="#ff4f9a" />
+          </TouchableOpacity>
         </View>
+      )}
+
+      {/* RECORDING STATUS */}
+      {isRecording && (
+        <View
+          style={{
+            padding: 12,
+            backgroundColor: "#ffe3e3",
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: "red", fontWeight: "bold" }}>
+            🎙️ Đang ghi âm... {recordDuration}s
+          </Text>
+        </View>
+      )}
+
+      {/* INPUT */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 10,
+          paddingVertical: 8,
+          borderTopWidth: 1,
+          borderColor: "#ddd",
+        }}
+      >
+        <TouchableOpacity onPress={togglePanel} style={{ paddingRight: 8 }}>
+          <Ionicons
+            name={openPanel ? "close" : "add-circle-outline"}
+            size={30}
+            color="#ff4f9a"
+          />
+        </TouchableOpacity>
+
+        <TextInput
+          value={value}
+          multiline
+          placeholder="Aa"
+          onChangeText={(text) => {
+            onChange(text);
+            onTyping?.(true);
+            setTimeout(() => onTyping?.(false), 1200);
+          }}
+          onFocus={() => {
+            setOpenPanel(false);
+            setOpenEmoji(false);
+          }}
+          style={{
+            flex: 1,
+            fontSize: 16,
+            paddingHorizontal: 14,
+            marginHorizontal: 10,
+            backgroundColor: "#f1f1f1",
+            borderRadius: 25,
+            maxHeight: 100,
+          }}
+        />
+
+        <TouchableOpacity
+          onPress={() => {
+            if (isRecording) stopRecording();
+            else if (hasText) onSend();
+            else startRecording();
+
+            setOpenPanel(false);
+            setOpenEmoji(false);
+          }}
+        >
+          <Ionicons
+            name={isRecording ? "stop-circle" : hasText ? "send" : "mic-outline"}
+            size={28}
+            color={isRecording ? "red" : "#ff4f9a"}
+          />
+        </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+   </>
   );
 };
 

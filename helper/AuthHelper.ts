@@ -4,7 +4,7 @@ import { router } from "expo-router";
 export class AuthHelper {
   private static instance: AuthHelper;
 
-  private constructor() {}
+  private constructor() { }
 
   private _isAdmin: boolean = false;
   private _accessToken: string | null = null;
@@ -27,9 +27,9 @@ export class AuthHelper {
     this._isAdmin = isAdmin;
   }
 
-  public async logOut(){
-   await AsyncStorage.removeItem(AuthHelper.ACCESS_TOKEN_KEY);
-   router.replace('/(auth)/login')
+  public async logOut() {
+    await AsyncStorage.removeItem(AuthHelper.ACCESS_TOKEN_KEY);
+    router.replace('/(auth)/login')
   }
 
   // ---- Access Token ----
@@ -55,5 +55,15 @@ export class AuthHelper {
   }
 
 
-  
+  public async getUserId(): Promise<string | null> {
+
+    const user = JSON.parse(await AsyncStorage.getItem('USER') ?? '');
+
+
+
+    return user.id;
+  }
+
+
+
 }

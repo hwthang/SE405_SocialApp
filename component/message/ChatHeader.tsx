@@ -1,3 +1,4 @@
+import { Colors } from "@/constant/Colors";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, Platform, StatusBar, Text, TouchableOpacity, View } from "react-native";
@@ -18,16 +19,17 @@ const ChatHeader = ({ name, avatar, onBack, status = "online" }: any) => {
         paddingTop,
         paddingBottom: 10,
         paddingHorizontal: 15,
-        backgroundColor: "white",
+        backgroundColor: Colors.blue[500],
         flexDirection: "row",
         alignItems: "center",
         gap: 15,
         borderBottomWidth: 1,
         borderColor: "#eee",
+        
       }}
     >
       <TouchableOpacity onPress={onBack}>
-        <Ionicons name="chevron-back" size={28} />
+        <Ionicons name="chevron-back" size={28} color={'white'}/>
       </TouchableOpacity>
 
       <View>
@@ -38,22 +40,22 @@ const ChatHeader = ({ name, avatar, onBack, status = "online" }: any) => {
             height: 48,
             borderRadius: 40,
             borderWidth: status === "online" ? 2 : 0,
-            borderColor: "#4CAF50",
+            // borderColor: "#4CAF50",
           }}
         />
       </View>
 
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 17, fontWeight: "bold" }}>{name}</Text>
-        <Text style={{ fontSize: 13, color: "#666" }}>{getStatusText()}</Text>
+        <Text style={{ fontSize: 17, fontWeight: "bold", color:'white' }}>{name}</Text>
+        <Text style={{ fontSize: 13, color: "white" }}>{getStatusText()}</Text>
       </View>
 
       <TouchableOpacity>
-        <Ionicons name="call-outline" size={25} />
+        <Ionicons name="call-outline" size={25} color={'white'} />
       </TouchableOpacity>
 
       <TouchableOpacity>
-        <Ionicons name="videocam-outline" size={25} />
+        <Ionicons name="videocam-outline" size={25} color={'white'}/>
       </TouchableOpacity>
     </View>
   );

@@ -1,78 +1,20 @@
-// // app/(main)/(tabs)/conversation/[id].tsx
-
-// import { useLocalSearchParams, useRouter } from "expo-router";
-// import React, { useState } from "react";
-// import { View } from "react-native";
-
-// import ChatHeader from "../../../component/message/ChatHeader";
-// import InputBar from "../../../component/message/InputBar";
-// import MessageList from "../../../component/message/MessageList";
-// import PinnedMessage from "../../../component/message/PinnedMessage";
-
-// // Mock data
-// const mockMessages = [
-//   { id: "1", text: "hello", isMe: false },
-//   { id: "2", text: "chào", isMe: false },
-//   { id: "3", text: "Bạn ở đâu", isMe: true },
-//   { id: "4", text: "tại trường", isMe: false },
-//   { id: "5", text: "Ra r", isMe: true },
-//   { id: "6", text: "Ra đâu, đi hắn lên viae hè ấy", isMe: false },
-// ];
-
-// export default function ChatDetailScreen() {
-//   const router = useRouter();
-//   const { id } = useLocalSearchParams();
-
-//   const [message, setMessage] = useState("");
-//   const [list, setList] = useState(mockMessages);
-
-//   const pinned = "Hẹn tối nay 7h nhré"; 
-
-//   const handleSend = () => {
-//     if (!message.trim()) return;
-
-//     setList((prev) => [
-//       ...prev,
-//       {
-//         id: String(prev.length + 1),
-//         text: message,
-//         isMe: true,
-//       },
-//     ]);
-
-//     setMessage("");
-//   };
-
-//   return (
-//     <View style={{ flex: 1, backgroundColor: "#f8f8f8" }}>
-//       {/* Header */}
-//       <ChatHeader
-//         name="Tình iu tuyệt vời"
-//         avatar="https://i.pinimg.com/originals/25/6a/e4/256ae40f4af0b506f7f6ffdbb9a09a1e.jpg"
-//         onBack={() => router.back()}
-//       />
-
-//       {/* Pinned Message (optional) */}
-//       <PinnedMessage text={pinned} />
-
-//       {/* Message List */}
-//       <MessageList data={list} />
-
-//       {/* Input Bar */}
-//       <InputBar value={message} onChange={setMessage} onSend={handleSend} />
-//     </View>
-//   );
-// }
-
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
-import { View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  View,
+} from "react-native";
 
-import ChatHeader from "../../../component/message/ChatHeader";
-import InputBar from "../../../component/message/InputBar";
-import MessageList from "../../../component/message/MessageList";
-import PinnedMessage from "../../../component/message/PinnedMessage";
+import ChatHeader from "@/component/message/ChatHeader";
+import InputBar from "@/component/message/InputBar";
+import MessageList from "@/component/message/MessageList";
 
+import { Api } from "@/helper/Api";
+import { AuthHelper } from "@/helper/AuthHelper";
+import UploadHelper from "@/helper/UploadHelper";
+
+/* ================= TYPES ================= */
 type MessageType = {
   id: string;
   text?: string;
@@ -82,104 +24,194 @@ type MessageType = {
   reaction?: string;
 };
 
-const mockMessages: MessageType[] = [
-  { id: "1", text: "hello", isMe: false },
-  { id: "2", text: "chào", isMe: false },
-  { id: "3", text: "Bạn ở đâu", isMe: true },
-  { id: "4", text: "tại trường", isMe: false },
-  { id: "5", text: "Ra r", isMe: true },
-  { id: "6", text: "Ra đâu, đi hắn lên viae hè ấy", isMe: false },
-];
-
+/* ================= SCREEN ================= */
 export default function ChatDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id: conversationId } = useLocalSearchParams();
 
   const [message, setMessage] = useState("");
-  const [list, setList] = useState<MessageType[]>(mockMessages);
+  const [messages, setMessages] = useState<MessageType[]>([]);
   const [typing, setTyping] = useState(false);
 
-  const pinned = "Hẹn tối nay 7h nhé";
+  /* =====================================================
+   * 📌 API: FETCH MESSAGE LIST
+   * ===================================================== */
+  const fetchMessages = async () => {
+    try {
+      const token = await AuthHelper.getInstance().getAccessToken();
 
-  // ===================== SEND TEXT =====================
-  const handleSend = () => {
+      const res = await fetch(
+        `${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const json = await res.json();
+
+      const formatted: MessageType[] = json.data.map((m: any) => ({
+        id: m.id,
+        text: m.type === "TEXT" ? m.content : undefined,
+        image: m.type === "IMAGE" ? m.mediaUrl : undefined,
+        audio: m.type === "FILE" ? m.mediaUrl : undefined,
+        isMe: m.senderId === json.meId,
+        reaction: m.reaction,
+      }));
+
+      setMessages(formatted);
+    } catch (err) {
+      console.error("❌ fetchMessages error:", err);
+    }
+  };
+
+  /* =====================================================
+   * 📌 API: SEND MESSAGE (CORE)
+   * ===================================================== */
+  const sendMessage = async (payload: {
+    type: "TEXT" | "IMAGE" | "FILE";
+    content?: string;
+    mediaUrl?: string;
+    replyToMessageId?: string;
+  }) => {
+    try {
+      const token = await AuthHelper.getInstance().getAccessToken();
+
+      await fetch(`${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          conversationId,
+          type: payload.type,
+          content: payload.content,
+          mediaUrl: payload.mediaUrl,
+          replyToMessageId: payload.replyToMessageId,
+        }),
+      });
+    } catch (err) {
+      console.error("❌ sendMessage error:", err);
+    }
+  };
+
+  /* =====================================================
+   * 📌 LOAD MESSAGE
+   * ===================================================== */
+  useEffect(() => {
+    // fetchMessages(); // bật khi API ready
+  }, []);
+
+  /* ================= HANDLERS ================= */
+
+  // 🔹 SEND TEXT
+  const handleSend = async () => {
     if (!message.trim()) return;
 
-    setList((prev) => [
+    const tempId = String(Date.now());
+
+    // Optimistic UI
+    setMessages((prev) => [
       ...prev,
-      {
-        id: String(prev.length + 1),
-        text: message,
-        isMe: true,
-      },
+      { id: tempId, text: message, isMe: true },
     ]);
+
+    await sendMessage({
+      type: "TEXT",
+      content: message,
+    });
 
     setMessage("");
-
-    // Fake typing của người kia
     setTyping(true);
-    setTimeout(() => setTyping(false), 1200);
+    setTimeout(() => setTyping(false), 1000);
   };
 
-  // ===================== SEND IMAGE =====================
-  const handleSendImage = (uri: string) => {
-    setList((prev) => [
-      ...prev,
-      {
-        id: String(prev.length + 1),
-        image: uri,
-        isMe: true,
-      },
-    ]);
+  // 🔹 SEND IMAGE (Cloudinary)
+  const handleSendImage = async (file: any) => {
+    try {
+      const media = await UploadHelper
+        .getInstance()
+        .getMediaObject(file);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: String(Date.now()),
+          image: media.url,
+          isMe: true,
+        },
+      ]);
+
+      await sendMessage({
+        type: "IMAGE",
+        mediaUrl: media.url,
+      });
+    } catch (err) {
+      console.error("❌ handleSendImage error:", err);
+    }
   };
 
-  // ===================== SEND AUDIO =====================
-  const handleRecordVoice = (uri: string) => {
-    setList((prev) => [
-      ...prev,
-      {
-        id: String(prev.length + 1),
-        audio: uri,
-        isMe: true,
-      },
-    ]);
+  // 🔹 SEND VOICE / AUDIO
+  const handleRecordVoice = async (file: any) => {
+    try {
+      const media = await UploadHelper
+        .getInstance()
+        .getMediaObject(file);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: String(Date.now()),
+          audio: media.url,
+          isMe: true,
+        },
+      ]);
+
+      await sendMessage({
+        type: "FILE",
+        mediaUrl: media.url,
+      });
+    } catch (err) {
+      console.error("❌ handleRecordVoice error:", err);
+    }
   };
 
-  // ===================== DELETE =====================
   const handleDelete = (id: string) => {
-    setList((prev) => prev.filter((m) => m.id !== id));
+    setMessages((prev) => prev.filter((m) => m.id !== id));
   };
 
-  // ===================== REPLY =====================
   const handleReply = (msg: MessageType) => {
     if (msg.text) setMessage(msg.text + " ");
     if (msg.image) setMessage("[Hình ảnh] ");
     if (msg.audio) setMessage("[Voice] ");
   };
 
-  // ===================== REACTION =====================
   const handleReact = (id: string, emoji: string) => {
-    setList((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, reaction: emoji } : m))
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id ? { ...m, reaction: emoji } : m
+      )
     );
   };
 
+  /* ================= RENDER ================= */
   return (
-    <View style={{ flex: 1, backgroundColor: "#f8f8f8", paddingBottom:200 }}>
-      {/* HEADER */}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#f8f8f8", marginBottom: 40 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <ChatHeader
         name="Nguyễn Văn A"
         avatar="https://i.pravatar.cc/150?img=1"
         onBack={() => router.back()}
       />
 
-      {/* PINNED MESSAGE */}
-      <PinnedMessage text={pinned} />
-
-      {/* LIST */}
       <View style={{ flex: 1 }}>
         <MessageList
-          messages={list}
+          messages={messages}
           typing={typing}
           onDelete={handleDelete}
           onReply={handleReply}
@@ -187,15 +219,14 @@ export default function ChatDetailScreen() {
         />
       </View>
 
-      {/* INPUT BAR */}
       <InputBar
         value={message}
         onChange={setMessage}
         onSend={handleSend}
-        onTyping={(state) => setTyping(state)}
+        onTyping={setTyping}
         onSendImage={handleSendImage}
         onRecordVoice={handleRecordVoice}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }

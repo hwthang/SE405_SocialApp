@@ -55,9 +55,9 @@ const TabLayout = () => {
       {/* 👥 Friend */}
       <Tabs.Protected guard={!isAdmin}>
         <Tabs.Screen
-          name="friend"
+          name="friend/index"
           options={{
-            headerShown: false,
+            header: () => <MainHeader />,
             title: "Bạn bè",
             tabBarIcon: ({ focused }) => (
               <TouchableOpacity
@@ -103,7 +103,6 @@ const TabLayout = () => {
           }}
         />
       </Tabs.Protected>
-      
 
       {/* 👤 Account */}
       <Tabs.Protected guard={isAdmin}>
@@ -158,6 +157,7 @@ const TabLayout = () => {
         <Tabs.Screen
           name="conversation/index"
           options={{
+            header: () => <MainHeader />,
             title: "Tin nhắn",
             tabBarIcon: ({ focused }) => (
               <View>
