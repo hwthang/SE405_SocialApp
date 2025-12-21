@@ -1,7 +1,7 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-export const REACTIONS_MAP: any = {
+export const REACTIONS_MAP: Record<string, string> = {
   LIKE: "👍",
   LOVE: "❤️",
   HAHA: "😆",
@@ -22,29 +22,39 @@ type Props = {
 const MessageActions = ({ isMe, hasReacted, onReact, onUnreact, onReply, onDelete }: Props) => {
   return (
     <View style={[styles.container, isMe ? styles.alignEnd : styles.alignStart]}>
-      {/* Thanh Reaction nổi lên */}
+      {/* Reaction Bar - Bo tròn mạnh, bóng đổ mịn */}
       <View style={styles.reactionBar}>
         {Object.entries(REACTIONS_MAP).map(([key, emoji]) => (
-          <TouchableOpacity key={key} onPress={() => onReact(key)}>
-            <Text style={styles.emojiText}>{emoji as string}</Text>
+          <TouchableOpacity 
+            key={key} 
+            onPress={() => onReact(key)}
+            activeOpacity={0.6}
+            style={styles.emojiWrapper}
+          >
+            <Text style={styles.emojiText}>{emoji}</Text>
           </TouchableOpacity>
         ))}
+        
         {hasReacted && (
-          <TouchableOpacity onPress={onUnreact} style={styles.unreactBtn}>
+          <TouchableOpacity onPress={onUnreact} style={styles.unreactBtn} activeOpacity={0.7}>
             <Text style={styles.unreactText}>✕</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Menu chữ bên dưới */}
-      <View style={[styles.actionBar, isMe && { flexDirection: "row-reverse" }]}>
-        <TouchableOpacity onPress={onReply}>
+      {/* Menu Actions - Thiết kế dạng thẻ mini */}
+      <View style={[styles.actionBar, isMe ? styles.rowReverse : styles.row]}>
+        <TouchableOpacity onPress={onReply} style={styles.actionItem}>
           <Text style={styles.actionText}>Trả lời</Text>
         </TouchableOpacity>
+
         {isMe && (
-          <TouchableOpacity onPress={onDelete}>
-            <Text style={[styles.actionText, styles.deleteText]}>Gỡ</Text>
-          </TouchableOpacity>
+          <>
+            <View style={styles.divider} />
+            <TouchableOpacity onPress={onDelete} style={styles.actionItem}>
+              <Text style={[styles.actionText, styles.deleteText]}>Gỡ bỏ</Text>
+            </TouchableOpacity>
+          </>
         )}
       </View>
     </View>
@@ -54,26 +64,86 @@ const MessageActions = ({ isMe, hasReacted, onReact, onUnreact, onReply, onDelet
 export default React.memo(MessageActions);
 
 const styles = StyleSheet.create({
-  container: { paddingVertical: 8, width: 280 },
-  alignEnd: { alignSelf: "flex-end", alignItems: "flex-end" },
-  alignStart: { alignSelf: "flex-start", alignItems: "flex-start" },
+  container: { 
+    paddingVertical: 10, 
+    width: '100%',
+    paddingHorizontal: 16 
+  },
+  alignEnd: { alignItems: "flex-end" },
+  alignStart: { alignItems: "flex-start" },
+  
   reactionBar: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 30,
-    elevation: 5,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 32,
+    // Shadow cho iOS
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    gap: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    // Shadow cho Android
+    elevation: 8,
+    alignItems: "center",
+    marginBottom: 6,
+    borderWidth: Platform.OS === 'ios' ? 0.5 : 0,
+    borderColor: '#E0E0E0',
   },
-  emojiText: { fontSize: 24 },
-  unreactBtn: { backgroundColor: "#f3f4f6", width: 24, height: 24, borderRadius: 12, justifyContent: "center", alignItems: "center", alignSelf: "center" },
-  unreactText: { fontSize: 10, color: "#666", fontWeight: "bold" },
-  actionBar: { flexDirection: "row", marginTop: 8, gap: 20, paddingHorizontal: 15 },
-  actionText: { color: "#65676B", fontSize: 13, fontWeight: "600" },
-  deleteText: { color: "#FA3E3E" },
+  emojiWrapper: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  emojiText: { 
+    fontSize: 26, // Tăng nhẹ kích thước emoji
+  },
+  unreactBtn: { 
+    backgroundColor: "#F0F2F5", 
+    width: 22, 
+    height: 22, 
+    borderRadius: 11, 
+    justifyContent: "center", 
+    alignItems: "center", 
+    marginLeft: 4 
+  },
+  unreactText: { 
+    fontSize: 10, 
+    color: "#8E8E93", 
+    fontWeight: "800" 
+  },
+
+  actionBar: { 
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    // Shadow nhẹ hơn thanh reaction
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  row: { flexDirection: "row" },
+  rowReverse: { flexDirection: "row-reverse" },
+  
+  actionItem: {
+    paddingHorizontal: 8,
+  },
+  actionText: { 
+    color: "#1C1E21", 
+    fontSize: 14, 
+    fontWeight: "500",
+  },
+  deleteText: { 
+    color: "#FF3B30", // Màu đỏ chuẩn hệ thống
+  },
+  divider: {
+    width: 1,
+    height: 14,
+    backgroundColor: "#E4E6EB",
+    marginHorizontal: 4,
+  },
 });

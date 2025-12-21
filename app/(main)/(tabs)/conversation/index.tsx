@@ -68,7 +68,7 @@ export default function ConversationScreen() {
       );
 
       const result = await response.json();
-      if (!result?.data) return;
+      if (!result?.data || result?.data.length < 1) return;
 
       console.log(result.data.members);
 
@@ -85,18 +85,18 @@ export default function ConversationScreen() {
 
         let lastMessageText = "Hãy bắt đầu trò chuyện nào";
 
-        if (!lastMessage.deletedAt) {
-          if (lastMessage.type === "TEXT") {
+        if (!lastMessage?.deletedAt) {
+          if (lastMessage?.type === "TEXT") {
             lastMessageText = lastMessage.content ?? "";
-          } else if (lastMessage.type === "IMAGE") {
+          } else if (lastMessage?.type === "IMAGE") {
             lastMessageText = isMe
               ? "Bạn đã gửi một hình ảnh"
               : "Đã gửi một hình ảnh";
-          } else if (lastMessage.type === "FILE") {
+          } else if (lastMessage?.type === "FILE") {
             lastMessageText = isMe ? "Bạn đã gửi một tệp" : "Đã gửi một tệp";
           }
 
-          if (isMe && lastMessage.type === "TEXT") {
+          if (isMe && lastMessage?.type === "TEXT") {
             lastMessageText = `Bạn: ${lastMessageText}`;
           }
         }
@@ -107,7 +107,7 @@ export default function ConversationScreen() {
           avatar: displayUser?.avatarUrl ?? null,
           isOnline: displayUser?.isOnline ?? false,
           lastMessage: lastMessageText,
-          time: lastMessage.deletedAt ? "" : lastMessage?.createdAt,
+          time: lastMessage?.deletedAt ? "" : lastMessage?.createdAt,
         };
       });
 

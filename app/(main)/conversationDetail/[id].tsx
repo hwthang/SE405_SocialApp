@@ -82,68 +82,68 @@ const ChatScreenDetail = () => {
 
   // ================= HANDLE ACTIONS =================
 
-// 1. Hàm gỡ cảm xúc (Unreact)
-const handleUnreact = async (messageId: string) => {
-  try {
-    const token = await AuthHelper.getInstance().getAccessToken();
-    // API Unreact thường dùng DELETE hoặc POST tới endpoint unreact
-    const res = await fetch(
-      `${Api.getInstance().baseUrl}/messages/${messageId}/unreact`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (res.ok) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === messageId ? { ...msg, myReaction: null } : msg
-        )
+  // 1. Hàm gỡ cảm xúc (Unreact)
+  const handleUnreact = async (messageId: string) => {
+    try {
+      const token = await AuthHelper.getInstance().getAccessToken();
+      // API Unreact thường dùng DELETE hoặc POST tới endpoint unreact
+      const res = await fetch(
+        `${Api.getInstance().baseUrl}/messages/${messageId}/unreact`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
-    }
-  } catch (error) {
-    console.error("Lỗi khi gỡ react:", error);
-  } finally {
-    setActiveActionId(null);
-  }
-};
 
-// 2. Hàm xóa tin nhắn (Delete)
-const handleDelete = async (messageId: string) => {
-  try {
-    const token = await AuthHelper.getInstance().getAccessToken();
-    const res = await fetch(
-      `${Api.getInstance().baseUrl}/messages/${messageId}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      if (res.ok) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId ? { ...msg, myReaction: null } : msg
+          )
+        );
       }
-    );
+    } catch (error) {
+      console.error("Lỗi khi gỡ react:", error);
+    } finally {
+      setActiveActionId(null);
+    }
+  };
 
-    if (res.ok) {
-      // Cách 1: Xóa hẳn khỏi danh sách
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-      
-      // Cách 2: Nếu muốn hiện chữ "Tin nhắn đã bị thu hồi" như Messenger:
-      /*
+  // 2. Hàm xóa tin nhắn (Delete)
+  const handleDelete = async (messageId: string) => {
+    try {
+      const token = await AuthHelper.getInstance().getAccessToken();
+      const res = await fetch(
+        `${Api.getInstance().baseUrl}/messages/${messageId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (res.ok) {
+        // Cách 1: Xóa hẳn khỏi danh sách
+        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+
+        // Cách 2: Nếu muốn hiện chữ "Tin nhắn đã bị thu hồi" như Messenger:
+        /*
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === messageId ? { ...msg, type: "DELETED", content: "Tin nhắn đã bị thu hồi" } : msg
         )
       );
       */
+      }
+    } catch (error) {
+      console.error("Lỗi khi xóa tin nhắn:", error);
+    } finally {
+      setActiveActionId(null);
     }
-  } catch (error) {
-    console.error("Lỗi khi xóa tin nhắn:", error);
-  } finally {
-    setActiveActionId(null);
-  }
-};
+  };
   // ================= INIT =================
   useEffect(() => {
     const init = async () => {
@@ -202,7 +202,8 @@ const handleDelete = async (messageId: string) => {
 
     setMessages(
       data.data.items
-        .filter((item: { deletedAt: any; }) => !item.deletedAt).map((i: any) => ({
+        .filter((item: { deletedAt: any }) => !item?.deletedAt)
+        .map((i: any) => ({
           id: i.id,
           createdAt: i.createdAt,
           senderId: i.senderId,
@@ -218,7 +219,7 @@ const handleDelete = async (messageId: string) => {
         }))
         .sort(
           (a: any, b: any) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         )
     );
   };
@@ -244,27 +245,34 @@ const handleDelete = async (messageId: string) => {
 
       {/* MESSAGE LIST */}
 
-     <FlatList
-  ref={flatListRef}
-  data={messages}
-  keyExtractor={(i) => i.id}
-  onScrollBeginDrag={() => setActiveActionId(null)}
-  renderItem={({ item }) => (
-    <MessageBubble
-      item={item}
-      messages={messages}
-      myId={myId}
-      isActive={activeActionId === item.id}
-      onOpen={() => setActiveActionId(item.id)}
-      onClose={() => setActiveActionId(null)}
-      onReact={handleReact}
-      onReply={handleReply}
-      // 🚀 TRUYỀN THÊM 2 HÀM NÀY
-      onUnreact={() => handleUnreact(item.id)}
-      onDelete={() => handleDelete(item.id)}
-    />
-  )}
-/>
+      <FlatList
+        inverted
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(i) => i.id}
+        contentContainerStyle={{
+         paddingLeft:20,
+         paddingVertical:20
+        }}
+        // onContentSizeChange={() => {
+        //   flatListRef.current?.scrollToEnd({ animated: true });
+        // }}
+        onScrollBeginDrag={() => setActiveActionId(null)}
+        renderItem={({ item }) => (
+          <MessageBubble
+            item={item}
+            messages={messages}
+            myId={myId}
+            isActive={activeActionId === item.id}
+            onOpen={() => setActiveActionId(item.id)}
+            onClose={() => setActiveActionId(null)}
+            onReact={handleReact}
+            onReply={handleReply}
+            onUnreact={() => handleUnreact(item.id)}
+            onDelete={() => handleDelete(item.id)}
+          />
+        )}
+      />
 
       {/* INPUT BAR – ĐẨY THEO KEYBOARD */}
       <View
@@ -286,15 +294,15 @@ const handleDelete = async (messageId: string) => {
             };
 
             // Cập nhật vào danh sách tin nhắn hiện tại
-            setMessages((prev) => [...prev, updatedMsg]);
+            setMessages((prev) => [updatedMsg, ...prev]);
 
             // Xóa trạng thái đang reply
             setReplyingMessage(null);
 
-            // Cuộn xuống cuối
-            setTimeout(() => {
-              flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
+            // // Cuộn xuống cuối
+            // setTimeout(() => {
+            //   flatListRef.current?.scrollToEnd({ animated: true });
+            // }, 100);
           }}
         />
       </View>
