@@ -97,7 +97,7 @@ const MainLayout = () => {
 
   return (
     <Stack>
-      <Stack.Screen name="profile/index" options={{ header: () => <BackHeader /> }} />
+      {/* <Stack.Screen name="profile/index" options={{ header: () => <BackHeader /> }} /> */}
       <Stack.Screen name="map/index" options={{ header: () => <BackHeader /> }} />
       <Stack.Screen name="option/index" options={{ header: () => <BackHeader /> }} />
       <Stack.Screen name="qr/index" options={{ header: () => <BackHeader /> }} />
