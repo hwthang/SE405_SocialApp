@@ -6,7 +6,7 @@ class SocketHelper {
   private static instance: SocketHelper;
   public socket: Socket | null = null;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): SocketHelper {
     if (!SocketHelper.instance) {
@@ -58,15 +58,21 @@ class SocketHelper {
    * @param callback Hàm xử lý khi nhận được data
    */
   onNewNotification(callback: (data: any) => void) {
+
     this.socket?.on("notification:new", callback);
   }
 
   /**
    * Hủy lắng nghe sự kiện
    */
-  removeListener(event: string) {
-    this.socket?.off(event);
+ // helper/SocketHelper.ts
+removeListener(event: string, callback?: (data: any) => void) {
+  if (callback) {
+    this.socket?.off(event, callback); // Gỡ đúng người, đúng tội
+  } else {
+    this.socket?.off(event); // Gỡ sạch (dùng cẩn thận)
   }
+}
 
   /**
    * Ngắt kết nối hoàn toàn

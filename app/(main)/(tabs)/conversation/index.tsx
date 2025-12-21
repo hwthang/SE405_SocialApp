@@ -1,191 +1,57 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  Text,
-  View,
-} from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 
 import ConversationItem from "@/component/message/ConversationItem";
 import CreateGroupModal from "@/component/message/CreateGroupModal";
 import SearchBar from "@/component/message/SearchBar";
 import { Colors } from "@/constant/Colors";
-import { Api } from "@/helper/Api";
-import { AuthHelper } from "@/helper/AuthHelper";
 import SocketHelper from "@/helper/SocketHelper";
+import { ConversationService } from "@/service/ConversationService"; // Đã sửa đường dẫn theo file tree của bạn
+import { FriendService } from "@/service/FriendService";
 import { getRelativeTimeFromISO } from "@/utils/date";
-import Toast from "react-native-toast-message";
-
-type Conversation = {
-  id: string;
-  name: string;
-  avatar: string | null;
-  lastMessage?: string;
-  time?: string;
-  isOnline?: boolean;
-  isUnread?: boolean;
-  type: "DIRECT" | "GROUP";
-};
 
 export default function ConversationScreen() {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [friends, setFriends] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [openModal, setOpenModal] = useState(false);
-  const [friends, setFriends] = useState<any[]>([]);
 
-  // ================= 1. FETCH ALL CONVERSATIONS =================
-  const fetchConversations = async () => {
-    try {
-      const token = await AuthHelper.getInstance().getAccessToken();
-      const myUserId = await AuthHelper.getInstance().getUserId();
+  // 1. Hàm Load Hội thoại
+  const loadConversations = useCallback(async () => {
+    const data = await ConversationService.getInstance().fetchAll();
+    setConversations(data);
+  }, []);
 
-      const res = await fetch(`${Api.getInstance().baseUrl}/conversations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const result = await res.json();
-      if (!result?.data) return;
+  // 2. Hàm Load Bạn bè
+  const loadFriends = useCallback(async () => {
+    const data = await FriendService.getInstance().fetchFriends();
+    setFriends(data);
+  }, []);
 
-      const formatted = await Promise.all(
-        result.data.map(async (conv: any) => {
-          const isGroup = conv.type === "GROUP";
+  // 3. Khởi tạo dữ liệu (Chạy song song)
+  const initData = useCallback(async () => {
+    await Promise.all([loadConversations(), loadFriends()]);
+    setLoading(false);
+    setRefreshing(false);
+  }, [loadConversations, loadFriends]);
 
-          const msgRes = await fetch(
-            `${Api.getInstance().baseUrl}/conversations/${conv.id}/messages`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          const msgData = await msgRes.json();
-          const last = msgData?.data?.items?.[0];
-
-          const directUser = !isGroup
-            ? conv.members.find((m: any) => m.userId !== myUserId)?.user
-            : null;
-
-          let text = "Hãy bắt đầu trò chuyện nào";
-          let isUnread = false;
-
-          if (last && !last.deletedAt) {
-            const isMe = last.senderId === myUserId;
-
-            if (!isMe) {
-              const hasRead = last.reads?.some((r: any) => r.userId === myUserId);
-              if (!hasRead) isUnread = true;
-            }
-
-            // Lấy tên người gửi thực tế của tin nhắn cuối
-            const senderInConv = conv.members.find((m: any) => m.userId === last.senderId);
-            const senderName = isMe ? "Bạn" : (senderInConv?.user?.name ?? "Ai đó");
-
-            if (last.type === "TEXT") text = last.content ?? "";
-            else if (last.type === "IMAGE") text = "đã gửi một hình ảnh";
-            else if (last.type === "FILE") text = "đã gửi một tệp";
-
-            // Luôn hiển thị format: "Người gửi: Nội dung"
-            text = `${senderName}: ${text}`;
-          }
-
-          return {
-            id: conv.id,
-            name: isGroup ? (conv.title ?? "Nhóm chat") : (directUser?.name ?? "Unknown"),
-            avatar: isGroup ? (conv.avatar ?? null) : (directUser?.avatarUrl ?? null),
-            isOnline: isGroup ? false : (directUser?.isOnline ?? false),
-            lastMessage: text,
-            time: last?.createdAt || conv.updatedAt,
-            type: conv.type,
-            isUnread,
-          };
-        })
-      );
-
-      setConversations(formatted.sort((a, b) => new Date(b.time!).getTime() - new Date(a.time!).getTime()));
-    } catch (e) {
-      console.error("fetchConversations error:", e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  // ================= 2. SOCKET LISTENER =================
   useEffect(() => {
-    fetchConversations();
+    initData();
 
-    SocketHelper.onNewNotification(async (data) => {
-      if (data.type === "NEW_MESSAGE") {
-        const { conversationId } = data.payload;
-        const token = await AuthHelper.getInstance().getAccessToken();
-        const myUserId = await AuthHelper.getInstance().getUserId();
-
-        try {
-          const msgRes = await fetch(
-            `${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          const msgData = await msgRes.json();
-          const lastMsg = msgData?.data?.items?.[0];
-
-          if (!lastMsg) return;
-
-          setConversations((prevList) => {
-            const index = prevList.findIndex((c) => c.id === conversationId);
-            const newList = [...prevList];
-
-            if (index !== -1) {
-              const currentConv = newList[index];
-              const isMe = lastMsg.senderId === myUserId;
-              const senderName = isMe ? "Bạn" : (lastMsg.sender?.name ?? "Ai đó");
-              
-              let content = lastMsg.type === "TEXT" ? lastMsg.content : "đã gửi một tệp";
-              let fullText = `${senderName}: ${content}`;
-
-              newList[index] = {
-                ...currentConv,
-                lastMessage: fullText,
-                time: lastMsg.createdAt,
-                isUnread: !isMe,
-              };
-
-              const [updatedItem] = newList.splice(index, 1);
-              return [updatedItem, ...newList];
-            } else {
-              fetchConversations();
-              return prevList;
-            }
-          });
-
-          // Hiển thị Toast với Tên cuộc trò chuyện và Nội dung tin nhắn
-          const targetConv = conversations.find(c => c.id === conversationId);
-          Toast.show({
-            type: "info",
-            text1: targetConv?.name || "Tin nhắn mới",
-            text2: `${lastMsg.sender?.name || "Ai đó"}: ${lastMsg.content || "đã gửi một tệp"}`,
-            onPress: () => {
-              Toast.hide();
-              router.push({
-                pathname: "/(main)/conversationDetail/[id]",
-                params: { id: conversationId },
-              });
-            },
-            visibilityTime: 4000,
-          });
-        } catch (err) {
-          console.error("Socket update error:", err);
-        }
-      }
-    });
+    // Socket lắng nghe tin nhắn mới để cập nhật danh sách hội thoại
+    SocketHelper.onNewNotification(loadConversations);
 
     return () => {
-      SocketHelper.removeListener("notification:new");
+      SocketHelper.removeListener("notification:new", loadConversations);
     };
-  }, [conversations]); // Thêm conversations vào deps để Toast lấy được name mới nhất
+  }, [initData, loadConversations]);
 
-  // ================= 3. RENDER =================
-  const filtered = useMemo(() => {
+  // 4. Logic Tìm kiếm
+  const filteredConversations = useMemo(() => {
     if (!search.trim()) return conversations;
     return conversations.filter((c) =>
       c.name.toLowerCase().includes(search.toLowerCase())
@@ -220,27 +86,25 @@ export default function ConversationScreen() {
       </View>
 
       <FlatList
-        data={filtered}
-        keyExtractor={(i) => i.id}
+        data={filteredConversations}
+        keyExtractor={(item) => item.id}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
+          <RefreshControl 
+            refreshing={refreshing} 
             onRefresh={() => {
               setRefreshing(true);
-              fetchConversations();
-            }}
+              initData();
+            }} 
           />
         }
         renderItem={({ item }) => (
           <ConversationItem
             {...item}
             time={item.time ? getRelativeTimeFromISO(item.time) : ""}
-            onPress={() =>
-              router.push({
-                pathname: "/(main)/conversationDetail/[id]",
-                params: { id: item.id },
-              })
-            }
+            onPress={() => router.replace({
+              pathname: "/(main)/conversationDetail/[id]",
+              params: { id: item.id },
+            })}
           />
         )}
       />

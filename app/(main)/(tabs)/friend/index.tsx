@@ -1,103 +1,72 @@
-import FriendInvitationSection from "@/component/friend/FriendInviteSection";
+import FriendInvitationSection from "@/component/friend/FriendInvitationSection";
 import FriendListSection from "@/component/friend/FriendListSection";
-import FriendSuggestionSection from "@/component/friend/FriendSuggestionSection";
-import SocketHelper from "@/helper/SocketHelper"; // <--- Import SocketHelper
-import { BellPlus, UserPlus, Users } from "lucide-react-native";
+import SocketHelper from "@/helper/SocketHelper";
+import { useLocalSearchParams } from "expo-router";
+import { BellPlus, Users } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import Toast from "react-native-toast-message";
 
 const tabs = [
   { label: "Bạn bè", icon: Users },
-  { label: "Gợi ý", icon: UserPlus },
   { label: "Lời mời", icon: BellPlus },
 ];
 
 const FriendScreen = () => {
-  const [isActive, setIsActive] = useState(0);
+  const params = useLocalSearchParams();
+  // Khởi tạo tab: Nếu url có ?tab=invitation thì mở tab 1, ngược lại tab 0
+  const [isActive, setIsActive] = useState(params.tab === "invitation" ? 1 : 0);
+  const [hasNewInvite, setHasNewInvite] = useState(false);
+
+  // Cập nhật tab khi params thay đổi (Ví dụ đang ở màn hình này mà nhấn Toast)
+  useEffect(() => {
+    if (params.tab === "invitation") {
+      setIsActive(1);
+      setHasNewInvite(false);
+    }
+  }, [params.tab]);
 
   // ================= 1. THIẾT LẬP SOCKET LISTENERS =================
   useEffect(() => {
-    // Đảm bảo socket đã được kết nối (Hàm connect này bạn đã gọi ở Home hoặc App Root)
-    // SocketHelper.connect(); 
-
-    console.log("🔌 [FriendScreen] Socket listener initialized");
-
-    SocketHelper.onNewNotification((data) => {
-      console.log("📩 [FriendScreen] Socket Received Data:", data);
-
-      // Xử lý các loại thông báo liên quan đến bạn bè
-      switch (data.type) {
-        case "FRIEND_REQUEST":
-          Toast.show({
-            type: "info",
-            text1: "Lời mời kết bạn",
-            text2: data.payload?.senderName || "Ai đó đã gửi lời mời kết bạn cho bạn",
-            onPress: () => {
-              setIsActive(2); // Chuyển sang Tab Lời mời khi nhấn vào Toast
-              Toast.hide();
-            }
-          });
-          break;
-
-        case "FRIEND_ACCEPT":
-          Toast.show({
-            type: "success",
-            text1: "Kết bạn thành công",
-            text2: "Bạn và đối phương đã trở thành bạn bè",
-          });
-          // Có thể fetch lại danh sách bạn bè tại đây nếu cần
-          break;
-
-        default:
-          console.log("ℹ️ Thông báo loại khác:", data.type);
+    const handleNewRequest = (data: any) => {
+      if (data.type === "FRIEND_REQUEST_RECEIVED") {
+        // Nếu không ở tab lời mời thì hiện chấm đỏ thông báo
+        if (isActive !== 1) {
+          setHasNewInvite(true);
+        }
       }
-    });
-
-    // Clean up khi rời màn hình
-    return () => {
-      console.log("🔌 [FriendScreen] Removing socket listener");
-      SocketHelper.removeListener("notification:new");
     };
-  }, []);
+
+    SocketHelper.onNewNotification(handleNewRequest);
+    return () => SocketHelper.removeListener("notification:new", handleNewRequest);
+  }, [isActive]);
 
   return (
-    <View
-      style={{
-        borderWidth: 0,
-        marginBottom: 100,
-        paddingBottom: 20,
-        display: "flex",
-        flex: 1,
-        paddingTop: 10,
-        backgroundColor: "white",
-      }}
-    >
-      {/* Tabs */}
+    <View style={styles.container}>
+      {/* Tabs Layout */}
       <View style={styles.tabContainer}>
         {tabs.map((item, index) => {
           const IconComponent = item.icon;
+          const active = isActive === index;
+          const showBadge = index === 1 && hasNewInvite;
 
           return (
             <TouchableOpacity
               key={index}
-              style={[
-                styles.tabItem,
-                isActive === index && styles.tabItemActive,
-              ]}
-              onPress={() => setIsActive(index)}
+              style={[styles.tabItem, active && styles.tabItemActive]}
+              onPress={() => {
+                setIsActive(index);
+                if (index === 1) setHasNewInvite(false);
+              }}
             >
-              <IconComponent
-                size={18}
-                color={isActive === index ? "#fff" : "#333"}
-                strokeWidth={2}
-              />
-              <Text
-                style={[
-                  styles.tabText,
-                  isActive === index && styles.tabTextActive,
-                ]}
-              >
+              <View style={styles.iconWrapper}>
+                <IconComponent
+                  size={18}
+                  color={active ? "#fff" : "#333"}
+                  strokeWidth={2}
+                />
+                {showBadge && <View style={styles.badge} />}
+              </View>
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>
                 {item.label}
               </Text>
             </TouchableOpacity>
@@ -105,14 +74,10 @@ const FriendScreen = () => {
         })}
       </View>
 
-      {/* Content */}
-      {/* Lưu ý: Nếu bạn muốn dữ liệu tự động load lại khi có socket, 
-         bạn có thể truyền một state "refreshTrigger" hoặc gọi hàm fetch 
-         bên trong các Section này thông qua Ref/Context.
-      */}
-      {isActive === 0 && <FriendListSection />}
-      {isActive === 1 && <FriendSuggestionSection />}
-      {isActive === 2 && <FriendInvitationSection />}
+      {/* Content Render */}
+      <View style={{ flex: 1 }}>
+        {isActive === 0 ? <FriendListSection /> : <FriendInvitationSection />}
+      </View>
     </View>
   );
 };
@@ -120,12 +85,16 @@ const FriendScreen = () => {
 export default FriendScreen;
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingTop: 10,
+    backgroundColor: "white",
+  },
   tabContainer: {
     flexDirection: "row",
     gap: 12,
     marginBottom: 10,
     paddingHorizontal: 16,
-    borderWidth: 0
   },
   tabItem: {
     flex: 1,
@@ -144,9 +113,24 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: "#333",
+    fontSize: 14,
   },
   tabTextActive: {
     color: "#fff",
     fontWeight: "600",
+  },
+  iconWrapper: {
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "red",
+    borderWidth: 1,
+    borderColor: "white",
   },
 });

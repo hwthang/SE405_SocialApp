@@ -1,5 +1,5 @@
 import { Avatars } from "@/public/img/avatar";
-import React, { useEffect, useRef } from "react";
+import React, { useRef } from "react";
 import {
   Animated,
   Image,
@@ -53,8 +53,6 @@ const MessageBubble = ({
       },
     })
   ).current;
-
-  useEffect(()=>{console.log(item?.senderName)},[item.senderName])
 
   return (
     <View style={[styles.wrapper, !isMe && styles.row]}>

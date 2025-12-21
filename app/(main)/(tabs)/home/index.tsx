@@ -1,7 +1,6 @@
 import PostItem from "@/component/post/PostItem";
 import { Api } from "@/helper/Api";
 import { AuthHelper } from "@/helper/AuthHelper";
-import SocketHelper from "@/helper/SocketHelper";
 import React, { useCallback, useEffect, useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 
@@ -43,9 +42,9 @@ const HomeScreen = () => {
     fetchPostItems();
   }, [fetchPostItems]);
 
-  useEffect(() => {
-  SocketHelper.connect();
-}, []);
+//   useEffect(() => {
+//   SocketHelper.connect();
+// }, []);
 
   return (
     <View style={styles.container}>

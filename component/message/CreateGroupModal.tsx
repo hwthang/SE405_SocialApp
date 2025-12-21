@@ -2,7 +2,7 @@ import { CustomBottomModal } from "@/component/custom/CustomBottomModal";
 import { Colors } from "@/constant/Colors";
 import { Api } from "@/helper/Api";
 import { AuthHelper } from "@/helper/AuthHelper";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -13,7 +13,7 @@ import {
 } from "react-native";
 
 type Friend = {
-  id: string;
+  friendId: string;
   name: string;
   avatar: string | null;
 };
@@ -34,7 +34,7 @@ export default function CreateGroupModal({
   const [groupName, setGroupName] = useState("");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
+useEffect(()=>{console.log(friends), console.log(2)},[])
   /* ===================== FILTER ===================== */
   const filteredFriends = useMemo(() => {
     if (!search.trim()) return friends;
@@ -115,11 +115,11 @@ export default function CreateGroupModal({
 
   /* ===================== RENDER ITEM ===================== */
   const renderItem = ({ item }: { item: Friend }) => {
-    const checked = selectedIds.includes(item.id);
+    const checked = selectedIds.includes(item.friendId);
 
     return (
       <Pressable
-        onPress={() => toggleFriend(item.id)}
+        onPress={() => toggleFriend(item.friendId)}
         style={{
           flexDirection: "row",
           alignItems: "center",
@@ -189,7 +189,7 @@ export default function CreateGroupModal({
           ) : (
             <FlatList
               data={filteredFriends}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.friendId}
               renderItem={renderItem}
             />
           )}
