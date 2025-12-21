@@ -1,10 +1,12 @@
-import React, { useRef } from "react";
+import { Avatars } from "@/public/img/avatar";
+import React, { useEffect, useRef } from "react";
 import {
   Animated,
+  Image,
   PanResponder,
   StyleSheet,
   Text,
-  View
+  View,
 } from "react-native";
 import MessageActions, { REACTIONS_MAP } from "./MessageActions";
 import MessageMedia from "./MessageMedia";
@@ -36,11 +38,9 @@ const MessageBubble = ({
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5,
       onPanResponderMove: (_, g) => {
-        let dx = g.dx;
-        if (Math.abs(dx) > MAX_SWIPE) {
-          dx = dx > 0 ? MAX_SWIPE : -MAX_SWIPE;
-        }
-        translateX.setValue(dx);
+        translateX.setValue(
+          Math.max(-MAX_SWIPE, Math.min(MAX_SWIPE, g.dx))
+        );
       },
       onPanResponderRelease: (_, g) => {
         if (Math.abs(g.dx) >= MAX_SWIPE) {
@@ -54,72 +54,51 @@ const MessageBubble = ({
     })
   ).current;
 
+  useEffect(()=>{console.log(item?.senderName)},[item.senderName])
+
   return (
-    <View
-      style={[
-        styles.wrapper,
-        { alignItems: isMe ? "flex-end" : "flex-start" },
-      ]}
-    >
-      {/* CONTAINER CHUNG */}
-      <View
-        style={[
-          styles.container,
-          { alignItems: isMe ? "flex-end" : "flex-start" },
-        ]}
-      >
-        {/* MESSAGE */}
+    <View style={[styles.wrapper, !isMe && styles.row]}>
+      {!isMe && (
+        <Image
+          source={
+            item.senderAvatar
+              ? { uri: item.senderAvatar }
+              : Avatars.cat
+          }
+          style={styles.avatar}
+        />
+      )}
+
+      <View style={{ flex: 1 }}>
+        {!isMe && (
+          <Text style={styles.senderName}>{item.senderName}</Text>
+        )}
+
         <Animated.View
           {...panResponder.panHandlers}
           style={[
             styles.bubble,
             {
               transform: [{ translateX }],
+              alignSelf: isMe ? "flex-end" : "flex-start",
               backgroundColor: isText
                 ? isMe
                   ? "#3b82f6"
                   : "#e5e7eb"
                 : "transparent",
-              padding: isText ? 12 : 0,
             },
           ]}
         >
-          {/* QUOTE */}
           {quotedMessage && (
-            <View
-              style={[
-                styles.quoteContainer,
-                {
-                  backgroundColor: isMe
-                    ? "rgba(255,255,255,0.2)"
-                    : "rgba(0,0,0,0.05)",
-                  borderLeftColor: isMe ? "#fff" : "#3b82f6",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.quoteName,
-                  { color: isMe ? "#fff" : "#3b82f6" },
-                ]}
-              >
-                {quotedMessage.senderId === myId ? "Bạn" : "Người kia"}
-              </Text>
-              <Text
-                style={[
-                  styles.quoteText,
-                  { color: isMe ? "#eee" : "#666" },
-                ]}
-                numberOfLines={1}
-              >
-                {quotedMessage.content || "[Phương tiện]"}
+            <View style={styles.quote}>
+              <Text style={styles.quoteText} numberOfLines={1}>
+                {quotedMessage.content}
               </Text>
             </View>
           )}
 
-          {/* CONTENT */}
           {isText && (
-            <Text style={{ color: isMe ? "#fff" : "#000", fontSize: 16 }}>
+            <Text style={{ color: isMe ? "#fff" : "#000" }}>
               {item.content}
             </Text>
           )}
@@ -128,33 +107,19 @@ const MessageBubble = ({
             <MessageMedia type={item.type} uri={item.mediaUrl} />
           )}
 
-          {/* REACTION BADGE */}
           {item.myReaction && (
-            <View
-              style={[
-                styles.reactionBadge,
-                isMe ? { left: -6 } : { right: -6 },
-              ]}
-            >
-              <Text style={{ fontSize: 13 }}>
-                {REACTIONS_MAP[item.myReaction]}
-              </Text>
+            <View style={styles.reaction}>
+              <Text>{REACTIONS_MAP[item.myReaction]}</Text>
             </View>
           )}
         </Animated.View>
 
-        {/* ACTIONS – LUÔN Ở DƯỚI */}
         {isActive && (
-          <View
-            style={[
-              styles.actionWrapper,
-              { alignItems: isMe ? "flex-end" : "flex-start" },
-            ]}
-          >
+          <View style={{ marginTop: 6 }}>
             <MessageActions
               isMe={isMe}
               hasReacted={!!item.myReaction}
-              onReact={(emoji: string) => onReact(item.id, emoji)}
+              onReact={(e: string) => onReact(item.id, e)}
               onReply={() => onReply(item)}
               onUnreact={onUnreact}
               onDelete={onDelete}
@@ -167,52 +132,47 @@ const MessageBubble = ({
 };
 
 export default React.memo(MessageBubble);
+
 const styles = StyleSheet.create({
   wrapper: {
     marginVertical: 6,
-    marginHorizontal: 12,
-    width: "100%",
+    flexDirection: "row",
   },
-
-  container: {
-    width: "100%",
-    flexDirection: "column",
+  row: {
+    alignItems: "flex-start",
   },
-
-  bubble: {
-    borderRadius: 20,
-    maxWidth: "100%", // 🔥 FULL WIDTH
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 8,
   },
-
-  actionWrapper: {
-    marginTop: 6,
-    width: "100%",
-  },
-
-  quoteContainer: {
-    padding: 8,
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    marginBottom: 6,
-  },
-
-  quoteName: {
-    fontSize: 11,
-    fontWeight: "bold",
+  senderName: {
+    fontSize: 12,
+    color: "#555",
     marginBottom: 2,
   },
-
-  quoteText: {
-    fontSize: 13,
+  bubble: {
+    borderRadius: 18,
+    padding: 12,
+    maxWidth: "85%",
   },
-
-  reactionBadge: {
+  quote: {
+    borderLeftWidth: 3,
+    borderLeftColor: "#3b82f6",
+    paddingLeft: 6,
+    marginBottom: 6,
+  },
+  quoteText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  reaction: {
     position: "absolute",
     bottom: -10,
+    right: -6,
     backgroundColor: "#fff",
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: 4,
-    paddingVertical: 2,
-    elevation: 3,
   },
 });

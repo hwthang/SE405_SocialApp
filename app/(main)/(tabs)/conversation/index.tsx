@@ -9,15 +9,13 @@ import {
   View,
 } from "react-native";
 
-import { CustomBottomModal } from "@/component/custom/CustomBottomModal";
+import ConversationItem from "@/component/message/ConversationItem";
+import CreateGroupModal from "@/component/message/CreateGroupModal";
+import SearchBar from "@/component/message/SearchBar";
 import { Colors } from "@/constant/Colors";
 import { Api } from "@/helper/Api";
 import { AuthHelper } from "@/helper/AuthHelper";
 import { getRelativeTimeFromISO } from "@/utils/date";
-import ConversationItem from "../../../../component/message/ConversationItem";
-import SearchBar from "../../../../component/message/SearchBar";
-
-/* ===================== TYPES ===================== */
 
 type Conversation = {
   id: string;
@@ -26,346 +24,163 @@ type Conversation = {
   lastMessage?: string;
   time?: string;
   isOnline?: boolean;
+  isUnread?: boolean;
 };
-
-type Friend = {
-  id: string;
-  name: string;
-  avatar: string | null;
-};
-
-/* ===================== SCREEN ===================== */
 
 export default function ConversationScreen() {
   const router = useRouter();
-
-  /* ---------- STATE ---------- */
   const [search, setSearch] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
+  const [friends, setFriends] = useState<any[]>([]);
 
-  const [openCreateModal, setOpenCreateModal] = useState(false);
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
-  const [loadingFriends, setLoadingFriends] = useState(false);
+const fetchConversations = async () => {
+  try {
+    const token = await AuthHelper.getInstance().getAccessToken();
+    const myUserId = await AuthHelper.getInstance().getUserId();
 
-  /* ===================== API ===================== */
+    // 1. Lấy danh sách hội thoại
+    const res = await fetch(`${Api.getInstance().baseUrl}/conversations`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const result = await res.json();
+    if (!result?.data) return;
 
-  const fetchConversations = async () => {
-    try {
-      const token = await AuthHelper.getInstance().getAccessToken();
-      const myUserId = await AuthHelper.getInstance().getUserId();
+    // 2. Với mỗi hội thoại, gọi API lấy tin nhắn để có dữ liệu "reads"
+    // Sử dụng Promise.all để fetch song song tất cả các hội thoại
+    const formatted = await Promise.all(
+      result.data.map(async (conv: any) => {
+        const isGroup = conv.type === "GROUP";
 
-      const response = await fetch(
-        `${Api.getInstance().baseUrl}/conversations`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+        // Fetch tin nhắn mới nhất của hội thoại này để lấy field "reads"
+        const msgRes = await fetch(
+          `${Api.getInstance().baseUrl}/conversations/${conv.id}/messages`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const msgData = await msgRes.json();
+        
+        // Lấy tin nhắn đầu tiên (mới nhất) từ items
+        const last = msgData?.data?.items?.[0];
 
-      const result = await response.json();
-      if (!result?.data || result?.data.length < 1) return;
+        // --- Logic format như cũ ---
+        const directUser = !isGroup
+          ? conv.members.find((m: any) => m.userId !== myUserId)?.user
+          : null;
 
-      console.log(result.data.members);
+        let text = "Hãy bắt đầu trò chuyện nào";
+        let isUnread = false;
 
-      const formatted: Conversation[] = result.data.map((conv: any) => {
-        const displayUser =
-          conv.type === "DIRECT"
-            ? conv.members.find((m: any) => m.userId !== myUserId)?.user
-            : null;
+        if (last && !last.deletedAt) {
+          const isMe = last.senderId === myUserId;
 
-        const lastMessage =
-          conv.messages && conv.messages.length > 0 ? conv.messages[0] : null;
-
-        const isMe = lastMessage?.senderId === myUserId;
-
-        let lastMessageText = "Hãy bắt đầu trò chuyện nào";
-
-        if (!lastMessage?.deletedAt) {
-          if (lastMessage?.type === "TEXT") {
-            lastMessageText = lastMessage.content ?? "";
-          } else if (lastMessage?.type === "IMAGE") {
-            lastMessageText = isMe
-              ? "Bạn đã gửi một hình ảnh"
-              : "Đã gửi một hình ảnh";
-          } else if (lastMessage?.type === "FILE") {
-            lastMessageText = isMe ? "Bạn đã gửi một tệp" : "Đã gửi một tệp";
+          // LOGIC KIỂM TRA ĐỌC: Chỉ cần không thấy ID mình trong mảng reads
+          if (!isMe) {
+            const hasRead = last.reads?.some((r: any) => r.userId === myUserId);
+            if (!hasRead) isUnread = true;
           }
 
-          if (isMe && lastMessage?.type === "TEXT") {
-            lastMessageText = `Bạn: ${lastMessageText}`;
-          }
+          const senderName = isGroup
+            ? conv.members.find((m: any) => m.userId === last.senderId)?.user?.name ?? "Ai đó"
+            : "";
+
+          if (last.type === "TEXT") text = last.content ?? "";
+          else if (last.type === "IMAGE") text = "đã gửi một hình ảnh";
+          else if (last.type === "FILE") text = "đã gửi một tệp";
+
+          if (isGroup) text = `${isMe ? "Bạn" : senderName}: ${text}`;
+          else if (isMe) text = `Bạn: ${text}`;
         }
 
         return {
           id: conv.id,
-          name: displayUser?.name ?? "Unknown",
-          avatar: displayUser?.avatarUrl ?? null,
-          isOnline: displayUser?.isOnline ?? false,
-          lastMessage: lastMessageText,
-          time: lastMessage?.deletedAt ? "" : lastMessage?.createdAt,
+          name: isGroup ? (conv.title ?? "Nhóm chat") : (directUser?.name ?? "Unknown"),
+          avatar: isGroup ? (conv.avatar ?? null) : (directUser?.avatarUrl ?? null),
+          isOnline: isGroup ? false : (directUser?.isOnline ?? false),
+          lastMessage: text,
+          time: last?.createdAt || conv.updatedAt,
+          type: conv.type,
+          isUnread,
         };
-      });
+      })
+    );
 
-      console.log(formatted.filter);
+    // Sắp xếp lại danh sách hội thoại theo tin nhắn mới nhất
+    const sorted = formatted.sort((a, b) => {
+      return new Date(b.time).getTime() - new Date(a.time).getTime();
+    });
 
-      setConversations(formatted);
-    } catch (e) {
-      console.error("❌ fetchConversations error:", e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const fetchFriends = async () => {
-    try {
-      setLoadingFriends(true);
-      const token = await AuthHelper.getInstance().getAccessToken();
-
-      const response = await fetch(`${Api.getInstance().baseUrl}/friends`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const result = await response.json();
-      if (!result?.data) return;
-
-      const formatted: Friend[] = result.data.map((item: any) => ({
-        id: String(item.friendId),
-        name: item.name,
-        avatar: item.avatarUrl ?? null,
-      }));
-
-      setFriends(formatted);
-    } catch (e) {
-      console.error("❌ fetchFriends error:", e);
-    } finally {
-      setLoadingFriends(false);
-    }
-  };
-
-  /* ===================== EFFECT ===================== */
+    setConversations(sorted);
+  } catch (e) {
+    console.error("fetchConversations error:", e);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   useEffect(() => {
     fetchConversations();
   }, []);
 
-  /* ===================== SEARCH ===================== */
-
-  const filteredConversations = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!search.trim()) return conversations;
-    console.log(conversations);
     return conversations.filter((c) =>
       c.name.toLowerCase().includes(search.toLowerCase())
     );
   }, [conversations, search]);
 
-  /* ===================== FRIEND SELECT ===================== */
-
-  const toggleFriend = (id: string) => {
-    setSelectedFriendIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const renderFriendItem = ({ item }: { item: Friend }) => {
-    const checked = selectedFriendIds.includes(item.id);
-
-    return (
-      <Pressable
-        onPress={() => toggleFriend(item.id)}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingVertical: 12,
-        }}
-      >
-        <View
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: 6,
-            borderWidth: 2,
-            borderColor: checked ? Colors.blue[500] : "#ccc",
-            marginRight: 12,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: checked ? Colors.blue[500] : "transparent",
-          }}
-        >
-          {checked && <Text style={{ color: "white", fontSize: 14 }}>✓</Text>}
-        </View>
-
-        <Text style={{ fontSize: 16 }}>{item.name}</Text>
-      </Pressable>
-    );
-  };
-
-  const openCreateConversation = () => {
-    setOpenCreateModal(true);
-    fetchFriends();
-  };
-
-  /* ===================== LOADING ===================== */
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  /* ===================== RENDER ===================== */
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} />;
 
   return (
     <View style={{ flex: 1, backgroundColor: "white" }}>
-      {/* ===== Search + Add ===== */}
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         <View style={{ flex: 1 }}>
           <SearchBar value={search} onChange={setSearch} />
         </View>
-
         <Pressable
-          onPress={openCreateConversation}
+          onPress={() => setOpenModal(true)}
           style={{
-            paddingHorizontal: 10,
-            paddingVertical: 4,
-            borderRadius: 9999,
             marginRight: 10,
             backgroundColor: Colors.blue[500],
+            borderRadius: 999,
+            height: 48,
+            width: 48,
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          <Text style={{ fontSize: 26, fontWeight: "600", color: "white" }}>
-            ＋
-          </Text>
+          <Text style={{ fontSize: 28, color: "white" }}>＋</Text>
         </Pressable>
       </View>
 
-      {/* ===== List ===== */}
       <FlatList
-        data={filteredConversations}
-        keyExtractor={(item) => item.id}
+        data={filtered}
+        keyExtractor={(i) => i.id}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              fetchConversations();
-            }}
-          />
-        }
-        ListEmptyComponent={
-          <View style={{ alignItems: "center", marginTop: 100 }}>
-            <Text style={{ color: "#999", marginBottom: 12 }}>
-              Chưa có cuộc trò chuyện nào
-            </Text>
-
-            <Pressable
-              onPress={openCreateConversation}
-              style={{
-                borderColor: Colors.blue[500],
-                borderWidth: 1,
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-                borderRadius: 20,
-              }}
-            >
-              <Text style={{ color: Colors.blue[500], fontWeight: "600" }}>
-                Bắt đầu
-              </Text>
-            </Pressable>
-          </View>
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchConversations(); }} />
         }
         renderItem={({ item }) => (
           <ConversationItem
-            avatar={item.avatar}
-            name={item.name}
-            lastMessage={item.lastMessage}
-            time={getRelativeTimeFromISO(item.time as string)}
-            isOnline={item.isOnline}
+            {...item}
+            time={item.time ? getRelativeTimeFromISO(item.time) : ""}
             onPress={() =>
               router.push({
                 pathname: "/(main)/conversationDetail/[id]",
-                params: {
-                  id: item.id,
-                },
+                params: { id: item.id },
               })
             }
           />
         )}
       />
 
-      {/* ===== CREATE MODAL ===== */}
-      <CustomBottomModal
-        visible={openCreateModal}
-        onClose={() => {
-          setOpenCreateModal(false);
-          setSelectedFriendIds([]);
-        }}
-      >
-        <View style={{ padding: 20, flex: 1 }}>
-          <Text style={{ fontSize: 18, fontWeight: "600" }}>
-            Bắt đầu cuộc trò chuyện
-          </Text>
-
-          <View style={{ marginTop: 16, flex: 1 }}>
-            {loadingFriends ? (
-              <ActivityIndicator />
-            ) : (
-              <FlatList
-                data={friends}
-                keyExtractor={(item) => item.id}
-                renderItem={renderFriendItem}
-              />
-            )}
-          </View>
-
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "flex-end",
-              marginTop: 12,
-            }}
-          >
-            <Pressable onPress={() => setOpenCreateModal(false)}>
-              <Text style={{ color: "#666", fontSize: 16, marginRight: 16 }}>
-                Hủy
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                const selected = friends.filter((f) =>
-                  selectedFriendIds.includes(f.id)
-                );
-
-                console.log("✅ Selected friends:", selected);
-
-                setOpenCreateModal(false);
-                setSelectedFriendIds([]);
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.blue[500],
-                  fontSize: 16,
-                  fontWeight: "600",
-                }}
-              >
-                Xác nhận
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </CustomBottomModal>
+      <CreateGroupModal
+        visible={openModal}
+        onClose={() => setOpenModal(false)}
+        friends={friends}
+        loading={false}
+      />
     </View>
   );
 }
