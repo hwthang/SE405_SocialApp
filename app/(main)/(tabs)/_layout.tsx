@@ -14,7 +14,7 @@ import {
   Users,
 } from "lucide-react-native";
 import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { TouchableOpacity, View } from "react-native";
 
 const TabLayout = () => {
   const isAdmin = AuthHelper.getInstance().getIsAdmin();
@@ -165,7 +165,7 @@ const TabLayout = () => {
                   color={focused ? Colors.blue[600] : Colors.gray[500]}
                   size={26}
                 />
-                <View
+                {/* <View
                   style={{
                     position: "absolute",
                     top: -2,
@@ -183,7 +183,7 @@ const TabLayout = () => {
                   >
                     2
                   </Text>
-                </View>
+                </View> */}
               </View>
             ),
           }}
@@ -202,7 +202,7 @@ const TabLayout = () => {
                   color={focused ? Colors.blue[600] : Colors.gray[500]}
                   size={26}
                 />
-                <View
+                {/* <View
                   style={{
                     position: "absolute",
                     top: -2,
@@ -220,7 +220,7 @@ const TabLayout = () => {
                   >
                     3
                   </Text>
-                </View>
+                </View> */}
               </View>
             ),
           }}

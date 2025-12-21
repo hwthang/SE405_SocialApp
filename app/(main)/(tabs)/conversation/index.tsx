@@ -39,7 +39,7 @@ export default function ConversationScreen() {
   const [openModal, setOpenModal] = useState(false);
   const [friends, setFriends] = useState<any[]>([]);
 
-  // ================= 1. FETCH DATA =================
+  // ================= 1. FETCH ALL CONVERSATIONS =================
   const fetchConversations = async () => {
     try {
       const token = await AuthHelper.getInstance().getAccessToken();
@@ -55,7 +55,6 @@ export default function ConversationScreen() {
         result.data.map(async (conv: any) => {
           const isGroup = conv.type === "GROUP";
 
-          // Fetch tin nhắn mới nhất để lấy field "reads"
           const msgRes = await fetch(
             `${Api.getInstance().baseUrl}/conversations/${conv.id}/messages`,
             { headers: { Authorization: `Bearer ${token}` } }
@@ -73,22 +72,21 @@ export default function ConversationScreen() {
           if (last && !last.deletedAt) {
             const isMe = last.senderId === myUserId;
 
-            // Logic Unread
             if (!isMe) {
               const hasRead = last.reads?.some((r: any) => r.userId === myUserId);
               if (!hasRead) isUnread = true;
             }
 
-            const senderName = isGroup
-              ? conv.members.find((m: any) => m.userId === last.senderId)?.user?.name ?? "Ai đó"
-              : "";
+            // Lấy tên người gửi thực tế của tin nhắn cuối
+            const senderInConv = conv.members.find((m: any) => m.userId === last.senderId);
+            const senderName = isMe ? "Bạn" : (senderInConv?.user?.name ?? "Ai đó");
 
             if (last.type === "TEXT") text = last.content ?? "";
             else if (last.type === "IMAGE") text = "đã gửi một hình ảnh";
             else if (last.type === "FILE") text = "đã gửi một tệp";
 
-            if (isGroup) text = `${isMe ? "Bạn" : senderName}: ${text}`;
-            else if (isMe) text = `Bạn: ${text}`;
+            // Luôn hiển thị format: "Người gửi: Nội dung"
+            text = `${senderName}: ${text}`;
           }
 
           return {
@@ -113,53 +111,80 @@ export default function ConversationScreen() {
     }
   };
 
-  // ================= 2. LIFECYCLE & SOCKET =================
+  // ================= 2. SOCKET LISTENER =================
   useEffect(() => {
     fetchConversations();
 
-    // Đăng ký Socket Listener
-    SocketHelper.onNewNotification((data) => {
-      console.log("📩 Socket Received:", data);
-      Toast.show({type:'info', text1:data.type, text2: data.userId})
-
+    SocketHelper.onNewNotification(async (data) => {
       if (data.type === "NEW_MESSAGE") {
-        setConversations((prevList) => {
-          const index = prevList.findIndex((c) => c.id === data.conversationId);
+        const { conversationId } = data.payload;
+        const token = await AuthHelper.getInstance().getAccessToken();
+        const myUserId = await AuthHelper.getInstance().getUserId();
 
-          if (index !== -1) {
+        try {
+          const msgRes = await fetch(
+            `${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          const msgData = await msgRes.json();
+          const lastMsg = msgData?.data?.items?.[0];
+
+          if (!lastMsg) return;
+
+          setConversations((prevList) => {
+            const index = prevList.findIndex((c) => c.id === conversationId);
             const newList = [...prevList];
-            const currentConv = newList[index];
-            
-            // Format tin nhắn hiển thị theo type (Direct/Group)
-            let displayContent = data.content;
-            if (currentConv.type === "GROUP") {
-              displayContent = `${data.senderName || "Ai đó"}: ${data.content}`;
+
+            if (index !== -1) {
+              const currentConv = newList[index];
+              const isMe = lastMsg.senderId === myUserId;
+              const senderName = isMe ? "Bạn" : (lastMsg.sender?.name ?? "Ai đó");
+              
+              let content = lastMsg.type === "TEXT" ? lastMsg.content : "đã gửi một tệp";
+              let fullText = `${senderName}: ${content}`;
+
+              newList[index] = {
+                ...currentConv,
+                lastMessage: fullText,
+                time: lastMsg.createdAt,
+                isUnread: !isMe,
+              };
+
+              const [updatedItem] = newList.splice(index, 1);
+              return [updatedItem, ...newList];
+            } else {
+              fetchConversations();
+              return prevList;
             }
+          });
 
-            newList[index] = {
-              ...currentConv,
-              lastMessage: displayContent,
-              time: new Date().toISOString(),
-              isUnread: true,
-            };
-
-            const [updatedItem] = newList.splice(index, 1);
-            return [updatedItem, ...newList];
-          } else {
-            // Nếu hội thoại mới hoàn toàn thì fetch lại
-            fetchConversations();
-            return prevList;
-          }
-        });
+          // Hiển thị Toast với Tên cuộc trò chuyện và Nội dung tin nhắn
+          const targetConv = conversations.find(c => c.id === conversationId);
+          Toast.show({
+            type: "info",
+            text1: targetConv?.name || "Tin nhắn mới",
+            text2: `${lastMsg.sender?.name || "Ai đó"}: ${lastMsg.content || "đã gửi một tệp"}`,
+            onPress: () => {
+              Toast.hide();
+              router.push({
+                pathname: "/(main)/conversationDetail/[id]",
+                params: { id: conversationId },
+              });
+            },
+            visibilityTime: 4000,
+          });
+        } catch (err) {
+          console.error("Socket update error:", err);
+        }
       }
     });
 
     return () => {
       SocketHelper.removeListener("notification:new");
     };
-  }, []);
+  }, [conversations]); // Thêm conversations vào deps để Toast lấy được name mới nhất
 
-  // ================= 3. SEARCH LOGIC =================
+  // ================= 3. RENDER =================
   const filtered = useMemo(() => {
     if (!search.trim()) return conversations;
     return conversations.filter((c) =>
@@ -168,14 +193,13 @@ export default function ConversationScreen() {
   }, [conversations, search]);
 
   if (loading) return (
-    <View style={{ flex: 1, justifyContent: 'center' }}>
+    <View style={{ flex: 1, justifyContent: "center" }}>
       <ActivityIndicator size="large" color={Colors.blue[500]} />
     </View>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: "white" }}>
-      {/* HEADER SEARCH & ADD */}
       <View style={{ flexDirection: "row", alignItems: "center", paddingRight: 10 }}>
         <View style={{ flex: 1 }}>
           <SearchBar value={search} onChange={setSearch} />
@@ -195,14 +219,16 @@ export default function ConversationScreen() {
         </Pressable>
       </View>
 
-      {/* CONVERSATION LIST */}
       <FlatList
         data={filtered}
         keyExtractor={(i) => i.id}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={() => { setRefreshing(true); fetchConversations(); }} 
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              fetchConversations();
+            }}
           />
         }
         renderItem={({ item }) => (
