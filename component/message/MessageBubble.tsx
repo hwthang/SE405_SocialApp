@@ -1,286 +1,225 @@
-import { Audio } from "expo-av";
-import React, { useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Image,
-  PanResponder,
-  Pressable,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Api } from "@/helper/Api";
+import { AuthHelper } from "@/helper/AuthHelper";
+import React, { useEffect, useRef } from "react";
+import { Animated, PanResponder, StyleSheet, Text, View } from "react-native";
+import MessageActions, { REACTIONS_MAP } from "./MessageActions";
+import MessageMedia from "./MessageMedia";
 
-type Props = {
-  id: string;
-  message?: string;
-  image?: string;
-  audio?: string;
-  isMe?: boolean;
-  avatar?: string;
-  replyTo?: string;
-  onDelete?: () => void;
-  onReply?: (msg: string) => void;
-  reaction?: string;
-  onReact?: (emoji: string) => void;
-  seen?: boolean;
-};
+const MAX_SWIPE = 30;
 
 const MessageBubble = ({
-  message,
-  image,
-  audio,
-  isMe,
-  avatar,
-  replyTo,
-  onDelete,
-  onReply,
-  reaction,
+  item,
+  messages,
+  myId,
+  isActive,
+  onOpen,
+  onClose,
   onReact,
-  seen,
-}: Props) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.85)).current;
-  const removeAnim = useRef(new Animated.Value(1)).current;
+  onReply,
+  onUnreact, // <--- Nhận prop mới
+  onDelete   // <--- Nhận prop mới
+}: any) => {
+  const isMe = item.senderId === myId;
+  const isText = item.type === "TEXT";
 
-  const [showReactions, setShowReactions] = useState(false);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  // 🚀 Tìm tin nhắn gốc dựa trên ID đã map từ replyToMessageId
+  const quotedMessage = item.parentMessageId
+    ? messages.find((m: any) => m.id === item.parentMessageId)
+    : null;
 
-  // ==================== ANIMATION ====================
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, friction: 6, useNativeDriver: true }),
-    ]).start();
-  }, []);
+  // Animation logic
+  const translateX = useRef(new Animated.Value(0)).current;
 
-  const triggerDelete = () => {
-    Animated.timing(removeAnim, {
-      toValue: 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start(() => onDelete?.());
-  };
-
-  // SWIPE TO REPLY
-  const panX = useRef(new Animated.Value(0)).current;
-
-  const responder = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 10,
-    onPanResponderMove: (_, g) => {
-      if (!isMe && g.dx > 0) panX.setValue(g.dx);
-    },
-    onPanResponderRelease: (_, g) => {
-      if (g.dx > 80) onReply?.(message || image || audio || "");
-      Animated.spring(panX, { toValue: 0, useNativeDriver: true }).start();
-    },
-  });
-
-  // ==================== VOICE PLAYER ====================
-  const playAudio = async () => {
-    if (isPlaying) {
-      await sound?.pauseAsync();
-      setIsPlaying(false);
-      return;
-    }
-    if (!sound) {
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri: audio! });
-      setSound(newSound);
-      await newSound.playAsync();
-      setIsPlaying(true);
-
-      newSound.setOnPlaybackStatusUpdate((s) => {
-        if (s.isLoaded && !s.isPlaying) {
-          setIsPlaying(false);
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5,
+      onPanResponderMove: (_, g) => {
+        let dx = g.dx;
+        // Giới hạn khoảng cách kéo
+        if (Math.abs(dx) > MAX_SWIPE) dx = dx > 0 ? MAX_SWIPE : -MAX_SWIPE;
+        translateX.setValue(dx);
+      },
+      onPanResponderRelease: (_, g) => {
+        // Nếu kéo đủ xa thì mở/đóng menu
+        if (Math.abs(g.dx) >= MAX_SWIPE) {
+          isActive ? onClose() : onOpen();
         }
-      });
-    } else {
-      await sound.playAsync();
-      setIsPlaying(true);
-    }
+        // Trượt bubble về vị trí cũ
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      },
+    })
+  ).current;
+
+  const handleDelete = async () => {
+    const token = await AuthHelper.getInstance().getAccessToken();
+
+    const res = await fetch(
+      `${Api.getInstance().baseUrl}/messages/${item.id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await res.json();
   };
 
-  // ==================== UI ====================
+  useEffect(() => {
+    console.log();
+  }, []);
   return (
-    <Pressable onPress={() => setShowReactions(false)}>
-      <Animated.View style={{ opacity: removeAnim, transform: [{ scale: removeAnim }] }}>
-        <Animated.View
-          {...responder.panHandlers}
-          style={{
-            width: "100%",
-            alignItems: isMe ? "flex-end" : "flex-start",
-            marginBottom: 12,
-            transform: [{ translateX: panX }],
-          }}
-        >
-          {/* Avatar */}
-          {!isMe && (
-            <Image
-              source={{ uri: avatar }}
-              style={{ width: 30, height: 30, borderRadius: 50, marginLeft: 5, marginBottom: 5 }}
-            />
-          )}
-
-          <TouchableOpacity activeOpacity={0.8} onLongPress={() => setShowReactions(true)}>
-            <Animated.View
-              style={{
-                maxWidth: "75%",
-                paddingHorizontal: 12,
-                paddingVertical: replyTo ? 6 : 8,
-                borderRadius: 18,
-                backgroundColor: isMe ? "#ff4f9a" : "#f0f0f0",
-                opacity: fadeAnim,
-                transform: [{ scale: scaleAnim }],
-              }}
-            >
-              {/* Reply preview */}
-              {replyTo && (
-                <View
-                  style={{
-                    borderLeftWidth: 3,
-                    borderLeftColor: isMe ? "white" : "#ff4f9a",
-                    paddingLeft: 8,
-                    marginBottom: 4,
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: "#666" }} numberOfLines={1}>
-                    {replyTo}
-                  </Text>
-                </View>
-              )}
-
-              {/* IMAGE MESSAGE */}
-              {image && (
-                <Image
-                  source={{ uri: image }}
-                  style={{
-                    width: 180,
-                    height: 180,
-                    borderRadius: 12,
-                    backgroundColor: "#ddd",
-                    marginBottom: message ? 8 : 0,
-                  }}
-                />
-              )}
-
-              {/* AUDIO MESSAGE */}
-{audio && (
-  <TouchableOpacity
-    onPress={playAudio}
-    style={{
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 8,
-      paddingHorizontal: 10,
-      backgroundColor: isMe ? "rgba(255,255,255,0.25)" : "#eaeaea",
-      borderRadius: 14,
-      marginVertical: 4,
-    }}
-  >
-    {/* Icon play/pause */}
     <View
-      style={{
-        width: 34,
-        height: 34,
-        borderRadius: 34,
-        backgroundColor: isMe ? "white" : "#ccc",
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 10,
-      }}
+      style={[
+        styles.wrapper,
+        {
+          alignSelf: isMe ? "flex-end" : "flex-start",
+          // Đảm bảo tin nhắn đang mở menu phải nằm trên cùng
+          zIndex: isActive ? 999 : 1,
+          elevation: isActive ? 10 : 0,
+        },
+      ]}
     >
-      <Text style={{ fontSize: 18, color: isMe ? "#ff4f9a" : "#444" }}>
-        {isPlaying ? "⏸️" : "▶️"}
-      </Text>
-    </View>
-
-    {/* Text + wave placeholder */}
-    <View style={{ flex: 1 }}>
-      <Text
-        style={{
-          color: isMe ? "white" : "#222",
-          fontSize: 14,
-          marginBottom: 3,
-        }}
-      >
-        Voice message
-      </Text>
-
-      {/* audio bar fake */}
-      <View
-        style={{
-          height: 4,
-          width: "100%",
-          backgroundColor: isMe ? "rgba(255,255,255,0.5)" : "#ccc",
-          borderRadius: 10,
-        }}
-      />
-    </View>
-
-    {/* duration icon */}
-    <Text
-      style={{
-        fontSize: 12,
-        color: isMe ? "white" : "#444",
-        marginLeft: 8,
-      }}
-    >
-      0:10
-    </Text>
-  </TouchableOpacity>
-)}
-
-
-              {/* TEXT MESSAGE */}
-              {message && (
-                <Text style={{ color: isMe ? "white" : "#222", fontSize: 15 }}>{message}</Text>
-              )}
-            </Animated.View>
-          </TouchableOpacity>
-
-          {/* Reaction Under */}
-          {reaction && (
-            <Text style={{ marginTop: 4, fontSize: 18, marginLeft: 4 }}>{reaction}</Text>
-          )}
-
-          {/* Seen */}
-          {isMe && seen && (
-            <Text style={{ fontSize: 11, color: "#888", marginTop: 3 }}>Đã xem</Text>
-          )}
-
-          {/* Reaction Popup */}
-          {showReactions && (
+      <View style={styles.widthHolder}>
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[
+            styles.bubble,
+            {
+              transform: [{ translateX }],
+              backgroundColor: isText
+                ? isMe
+                  ? "#3b82f6" // Màu xanh tin nhắn của mình
+                  : "#e5e7eb" // Màu xám tin nhắn người khác
+                : "transparent",
+              padding: isText ? 12 : 0,
+            },
+          ]}
+        >
+          {/* 1. HIỂN THỊ TIN NHẮN ĐƯỢC TRẢ LỜI (QUOTE) */}
+          {quotedMessage && (
             <View
-              style={{
-                flexDirection: "row",
-                backgroundColor: "white",
-                padding: 6,
-                borderRadius: 25,
-                elevation: 5,
-                marginTop: 6,
-              }}
+              style={[
+                styles.quoteContainer,
+                {
+                  backgroundColor: isMe
+                    ? "rgba(255, 255, 255, 0.2)"
+                    : "rgba(0, 0, 0, 0.05)",
+                  borderLeftColor: isMe ? "#fff" : "#3b82f6",
+                },
+              ]}
             >
-              {["❤️", "😆", "😢", "👍", "🔥", "💔"].map((e) => (
-                <TouchableOpacity
-                  key={e}
-                  onPress={() => {
-                    onReact?.(e);
-                    setShowReactions(false);
-                  }}
-                >
-                  <Text style={{ fontSize: 22, marginHorizontal: 4 }}>{e}</Text>
-                </TouchableOpacity>
-              ))}
+              <Text
+                style={[styles.quoteName, { color: isMe ? "#fff" : "#3b82f6" }]}
+              >
+                {quotedMessage.senderId === myId ? "Bạn" : "Người kia"}
+              </Text>
+              <Text
+                style={[styles.quoteText, { color: isMe ? "#eee" : "#666" }]}
+                numberOfLines={1}
+              >
+                {quotedMessage.content || "[Phương tiện]"}
+              </Text>
+            </View>
+          )}
 
-              <TouchableOpacity onPress={triggerDelete} style={{ marginLeft: 8 }}>
-                <Text style={{ fontSize: 19, color: "red" }}>🗑️</Text>
-              </TouchableOpacity>
+          {/* 2. NỘI DUNG TIN NHẮN CHÍNH */}
+          {isText && (
+            <Text style={{ color: isMe ? "#fff" : "#000", fontSize: 16 }}>
+              {item.content}
+            </Text>
+          )}
+
+          {item.mediaUrl && (
+            <MessageMedia type={item.type} uri={item.mediaUrl} />
+          )}
+
+          {/* 3. HIỂN THỊ REACTION BADGE */}
+          {item.myReaction && (
+            <View
+              style={[
+                styles.reactionBadge,
+                isMe ? { left: -4 } : { right: -4 },
+              ]}
+            >
+              <Text style={{ fontSize: 13 }}>
+                {REACTIONS_MAP[item.myReaction] || item.myReaction}
+              </Text>
             </View>
           )}
         </Animated.View>
-      </Animated.View>
-    </Pressable>
+
+        {/* 4. MENU HÀNH ĐỘNG (REACTIONS & REPLY) */}
+        {isActive && (
+    <View style={[styles.actionsContainer, isMe ? { right: 0 } : { left: 0 }]}>
+      <MessageActions
+        isMe={isMe}
+        hasReacted={!!item.myReaction}
+        onReact={(emoji: string) => onReact(item.id, emoji)}
+        onReply={() => onReply(item)}
+        onUnreact={onUnreact} // <--- Gán vào đây
+        onDelete={onDelete}   // <--- Gán vào đây
+      />
+    </View>
+  )}
+      </View>
+    </View>
   );
 };
 
-export default MessageBubble;
+const styles = StyleSheet.create({
+  wrapper: {
+    marginBottom: 16, // Khoảng cách giữa các tin nhắn
+    marginHorizontal: 12,
+  },
+  widthHolder: {
+    maxWidth: "80%",
+    position: "relative",
+  },
+  bubble: {
+    borderRadius: 20,
+    zIndex: 2,
+    // Tránh bị cắt mất Reaction Badge
+  },
+  quoteContainer: {
+    padding: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    marginBottom: 6,
+  },
+  quoteName: {
+    fontSize: 11,
+    fontWeight: "bold",
+    marginBottom: 2,
+  },
+  quoteText: {
+    fontSize: 13,
+  },
+  reactionBadge: {
+    position: "absolute",
+    bottom: -10,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    // Đổ bóng cho badge
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  actionsContainer: {
+    position: "absolute",
+    top: "105%", // Hiển thị dưới tin nhắn
+    zIndex: 1000,
+    minWidth: 280,
+  },
+});
+
+export default React.memo(MessageBubble);

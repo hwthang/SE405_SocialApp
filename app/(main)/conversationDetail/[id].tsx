@@ -1,232 +1,305 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  View,
-} from "react-native";
-
 import ChatHeader from "@/component/message/ChatHeader";
 import InputBar from "@/component/message/InputBar";
-import MessageList from "@/component/message/MessageList";
-
+import MessageBubble from "@/component/message/MessageBubble";
 import { Api } from "@/helper/Api";
 import { AuthHelper } from "@/helper/AuthHelper";
-import UploadHelper from "@/helper/UploadHelper";
+import { useLocalSearchParams } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import { FlatList, Keyboard, View } from "react-native";
 
-/* ================= TYPES ================= */
-type MessageType = {
-  id: string;
-  text?: string;
-  image?: string;
-  audio?: string;
-  isMe: boolean;
-  reaction?: string;
-};
+const ChatScreenDetail = () => {
+  const { id } = useLocalSearchParams();
 
-/* ================= SCREEN ================= */
-export default function ChatDetailScreen() {
-  const router = useRouter();
-  const { id: conversationId } = useLocalSearchParams();
+  const [members, setMembers] = useState<any[]>([]);
+  const [currentConversation, setCurrentConversation] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [myId, setMyId] = useState<string>("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
+  const [replyingMessage, setReplyingMessage] = useState<any>(null);
+  const flatListRef = useRef<FlatList>(null);
 
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<MessageType[]>([]);
-  const [typing, setTyping] = useState(false);
+  // ================= HANDLE ACTIONS =================
 
-  /* =====================================================
-   * 📌 API: FETCH MESSAGE LIST
-   * ===================================================== */
-  const fetchMessages = async () => {
+  // 1. Hàm xử lý thả cảm xúc (React)
+  const handleReact = async (messageId: string, reaction: string) => {
     try {
-      const token = await AuthHelper.getInstance().getAccessToken();
+      console.log(`🚀 Đang thả ${reaction} cho tin nhắn: ${messageId}`);
 
+      const token = await AuthHelper.getInstance().getAccessToken();
       const res = await fetch(
-        `${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`,
+        `${Api.getInstance().baseUrl}/messages/${messageId}/reactions`,
         {
+          method: "POST", // Hoặc PATCH tùy API của bạn
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
+          body: JSON.stringify({ type: reaction }),
         }
       );
 
-      const json = await res.json();
-
-      const formatted: MessageType[] = json.data.map((m: any) => ({
-        id: m.id,
-        text: m.type === "TEXT" ? m.content : undefined,
-        image: m.type === "IMAGE" ? m.mediaUrl : undefined,
-        audio: m.type === "FILE" ? m.mediaUrl : undefined,
-        isMe: m.senderId === json.meId,
-        reaction: m.reaction,
-      }));
-
-      setMessages(formatted);
-    } catch (err) {
-      console.error("❌ fetchMessages error:", err);
+      if (res.ok) {
+        // Cập nhật UI ngay lập tức (Optimistic Update)
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId ? { ...msg, myReaction: reaction } : msg
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Lỗi khi thả react:", error);
+    } finally {
+      setActiveActionId(null); // Đóng menu sau khi chọn
     }
   };
 
-  /* =====================================================
-   * 📌 API: SEND MESSAGE (CORE)
-   * ===================================================== */
-  const sendMessage = async (payload: {
-    type: "TEXT" | "IMAGE" | "FILE";
-    content?: string;
-    mediaUrl?: string;
-    replyToMessageId?: string;
-  }) => {
-    try {
-      const token = await AuthHelper.getInstance().getAccessToken();
+  // 2. Hàm xử lý chọn trả lời (Reply)
+  const handleReply = (message: any) => {
+    console.log("📝 Đang trả lời tin nhắn:", message.id);
+    setReplyingMessage(message); // Lưu tin nhắn vào state để hiển thị trên InputBar
+    setActiveActionId(null); // Đóng menu action
 
-      await fetch(`${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          conversationId,
-          type: payload.type,
-          content: payload.content,
-          mediaUrl: payload.mediaUrl,
-          replyToMessageId: payload.replyToMessageId,
-        }),
-      });
-    } catch (err) {
-      console.error("❌ sendMessage error:", err);
-    }
+    // (Tùy chọn) Tự động focus vào ô nhập liệu
+    // inputRef.current?.focus();
   };
 
-  /* =====================================================
-   * 📌 LOAD MESSAGE
-   * ===================================================== */
+  // ================= KEYBOARD LISTENER =================
   useEffect(() => {
-    // fetchMessages(); // bật khi API ready
-  }, []);
-
-  /* ================= HANDLERS ================= */
-
-  // 🔹 SEND TEXT
-  const handleSend = async () => {
-    if (!message.trim()) return;
-
-    const tempId = String(Date.now());
-
-    // Optimistic UI
-    setMessages((prev) => [
-      ...prev,
-      { id: tempId, text: message, isMe: true },
-    ]);
-
-    await sendMessage({
-      type: "TEXT",
-      content: message,
+    const show = Keyboard.addListener("keyboardDidShow", (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
     });
 
-    setMessage("");
-    setTyping(true);
-    setTimeout(() => setTyping(false), 1000);
-  };
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0);
+    });
 
-  // 🔹 SEND IMAGE (Cloudinary)
-  const handleSendImage = async (file: any) => {
-    try {
-      const media = await UploadHelper
-        .getInstance()
-        .getMediaObject(file);
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: String(Date.now()),
-          image: media.url,
-          isMe: true,
+  // ================= HANDLE ACTIONS =================
+
+// 1. Hàm gỡ cảm xúc (Unreact)
+const handleUnreact = async (messageId: string) => {
+  try {
+    const token = await AuthHelper.getInstance().getAccessToken();
+    // API Unreact thường dùng DELETE hoặc POST tới endpoint unreact
+    const res = await fetch(
+      `${Api.getInstance().baseUrl}/messages/${messageId}/unreact`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      ]);
+      }
+    );
 
-      await sendMessage({
-        type: "IMAGE",
-        mediaUrl: media.url,
-      });
-    } catch (err) {
-      console.error("❌ handleSendImage error:", err);
+    if (res.ok) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId ? { ...msg, myReaction: null } : msg
+        )
+      );
     }
-  };
+  } catch (error) {
+    console.error("Lỗi khi gỡ react:", error);
+  } finally {
+    setActiveActionId(null);
+  }
+};
 
-  // 🔹 SEND VOICE / AUDIO
-  const handleRecordVoice = async (file: any) => {
-    try {
-      const media = await UploadHelper
-        .getInstance()
-        .getMediaObject(file);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: String(Date.now()),
-          audio: media.url,
-          isMe: true,
+// 2. Hàm xóa tin nhắn (Delete)
+const handleDelete = async (messageId: string) => {
+  try {
+    const token = await AuthHelper.getInstance().getAccessToken();
+    const res = await fetch(
+      `${Api.getInstance().baseUrl}/messages/${messageId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      ]);
+      }
+    );
 
-      await sendMessage({
-        type: "FILE",
-        mediaUrl: media.url,
-      });
-    } catch (err) {
-      console.error("❌ handleRecordVoice error:", err);
+    if (res.ok) {
+      // Cách 1: Xóa hẳn khỏi danh sách
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      
+      // Cách 2: Nếu muốn hiện chữ "Tin nhắn đã bị thu hồi" như Messenger:
+      /*
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId ? { ...msg, type: "DELETED", content: "Tin nhắn đã bị thu hồi" } : msg
+        )
+      );
+      */
     }
-  };
+  } catch (error) {
+    console.error("Lỗi khi xóa tin nhắn:", error);
+  } finally {
+    setActiveActionId(null);
+  }
+};
+  // ================= INIT =================
+  useEffect(() => {
+    const init = async () => {
+      const userId = await AuthHelper.getInstance().getUserId();
+      setMyId(userId as string);
+      await Promise.all([fetchConversation(), fetchMessages()]);
+    };
+    init();
+  }, []);
 
-  const handleDelete = (id: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-  };
+  // ================= FETCH CONVERSATION =================
+  const fetchConversation = async () => {
+    const token = await AuthHelper.getInstance().getAccessToken();
 
-  const handleReply = (msg: MessageType) => {
-    if (msg.text) setMessage(msg.text + " ");
-    if (msg.image) setMessage("[Hình ảnh] ");
-    if (msg.audio) setMessage("[Voice] ");
-  };
+    const res = await fetch(`${Api.getInstance().baseUrl}/conversations`, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-  const handleReact = (id: string, emoji: string) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === id ? { ...m, reaction: emoji } : m
-      )
+    const data = await res.json();
+    if (!data?.data) return;
+
+    const conv = data.data.find((i: any) => i.id === id);
+    if (!conv) return;
+
+    setCurrentConversation(conv);
+    setMembers(
+      conv.members
+        .filter((m: any) => m.user.id !== myId)
+        .map((m: any) => m.user)
     );
   };
 
-  /* ================= RENDER ================= */
+  // ================= FETCH MESSAGES =================
+  // ... (Các phần import và state giữ nguyên)
+
+  // ================= FETCH MESSAGES =================
+  const fetchMessages = async () => {
+    const token = await AuthHelper.getInstance().getAccessToken();
+
+    const res = await fetch(
+      `${Api.getInstance().baseUrl}/conversations/${id}/messages`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await res.json();
+    // console.log(data?.data?.items[0].reactions)
+    if (!data?.data?.items) return;
+
+    setMessages(
+      data.data.items
+        .filter((item: { deletedAt: any; }) => !item.deletedAt).map((i: any) => ({
+          id: i.id,
+          createdAt: i.createdAt,
+          senderId: i.senderId,
+          type: i.type,
+          content: i.content,
+          mediaUrl: i.mediaUrl,
+          // 🚀 MAPPING THÊM 2 TRƯỜNG NÀY:
+          parentMessageId: i.replyToMessageId, // ID tin nhắn gốc để hiển thị Quote
+          myReaction:
+            i.reactions && i.reactions.length > 0
+              ? i.reactions[0].type // Lấy react đầu tiên (hoặc logic tìm react của chính mình)
+              : null,
+        }))
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+    );
+  };
+
+  // ... (Các phần handleReact, handleReply giữ nguyên)
+
+  if (!currentConversation) {
+    return <View style={{ flex: 1, backgroundColor: "#fff" }} />;
+  }
+
+  const isDirect = currentConversation.type === "DIRECT";
+  const directUser = members[0];
+
+  // ================= RENDER =================
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#f8f8f8", marginBottom: 40 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={{ flex: 1, backgroundColor: "#fff", paddingBottom: 50 }}>
+      {/* HEADER */}
       <ChatHeader
-        name="Nguyễn Văn A"
-        avatar="https://i.pravatar.cc/150?img=1"
-        onBack={() => router.back()}
+        title={isDirect ? directUser?.name : currentConversation.title}
+        avatar={isDirect ? directUser?.avatar : undefined}
+        isOnline={isDirect ? directUser?.isOnline : false}
       />
 
-      <View style={{ flex: 1 }}>
-        <MessageList
-          messages={messages}
-          typing={typing}
-          onDelete={handleDelete}
-          onReply={handleReply}
-          onReact={handleReact}
+      {/* MESSAGE LIST */}
+
+     <FlatList
+  ref={flatListRef}
+  data={messages}
+  keyExtractor={(i) => i.id}
+  onScrollBeginDrag={() => setActiveActionId(null)}
+  renderItem={({ item }) => (
+    <MessageBubble
+      item={item}
+      messages={messages}
+      myId={myId}
+      isActive={activeActionId === item.id}
+      onOpen={() => setActiveActionId(item.id)}
+      onClose={() => setActiveActionId(null)}
+      onReact={handleReact}
+      onReply={handleReply}
+      // 🚀 TRUYỀN THÊM 2 HÀM NÀY
+      onUnreact={() => handleUnreact(item.id)}
+      onDelete={() => handleDelete(item.id)}
+    />
+  )}
+/>
+
+      {/* INPUT BAR – ĐẨY THEO KEYBOARD */}
+      <View
+        style={{
+          paddingBottom: keyboardHeight,
+        }}
+      >
+        <InputBar
+          conversationId={id as string}
+          replyingMessage={replyingMessage} // Tin nhắn đang được chọn để trả lời
+          onCancelReply={() => setReplyingMessage(null)}
+          onMessageSent={(newMsg) => {
+            // 🚀 TẠO OBJECT TIN NHẮN ĐÃ ĐƯỢC CẬP NHẬT THÔNG TIN REPLY
+            const updatedMsg = {
+              ...newMsg,
+              parentMessageId: replyingMessage?.id, // Gán ID tin nhắn gốc
+              // Nếu muốn hiển thị nhanh, bạn có thể map cả object vào:
+              // quotedMessage: replyingMessage
+            };
+
+            // Cập nhật vào danh sách tin nhắn hiện tại
+            setMessages((prev) => [...prev, updatedMsg]);
+
+            // Xóa trạng thái đang reply
+            setReplyingMessage(null);
+
+            // Cuộn xuống cuối
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+          }}
         />
       </View>
-
-      <InputBar
-        value={message}
-        onChange={setMessage}
-        onSend={handleSend}
-        onTyping={setTyping}
-        onSendImage={handleSendImage}
-        onRecordVoice={handleRecordVoice}
-      />
-    </KeyboardAvoidingView>
+    </View>
   );
-}
+};
+
+export default ChatScreenDetail;

@@ -1,63 +1,125 @@
-import { Colors } from "@/constant/Colors";
-import { Ionicons } from "@expo/vector-icons";
+import { Avatars } from "@/public/img/avatar";
+import { router } from "expo-router";
+import { ChevronLeft, Phone, Video } from "lucide-react-native";
 import React from "react";
-import { Image, Platform, StatusBar, Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
+import CustomHeader from "../custom/CustomHeader";
 
-const ChatHeader = ({ name, avatar, onBack, status = "online" }: any) => {
-  const paddingTop = Platform.OS === "android" ? StatusBar.currentHeight : 20;
+type ChatHeaderProps = {
+  title: string;
+  avatar?: string;
+  isOnline?: boolean;
+  subtitle?: string;
+  onCallPress?: () => void;
+  onVideoCallPress?: () => void;
+};
 
-  const getStatusText = () => {
-    if (status === "typing") return "Đang nhập...";
-    if (status === "online") return "Đang hoạt động";
-    return `Hoạt động ${status}`; // ex: 10 phút trước
-  };
+const ICON_COLOR = "white"; // 🎨 theme icon
+const ICON_SIZE = 22;
 
+const ChatHeader = ({
+  title,
+  avatar,
+  isOnline = false,
+  subtitle,
+  onCallPress,
+  onVideoCallPress,
+}: ChatHeaderProps) => {
   return (
-    <View
-      style={{
-        height: 90,
-        paddingTop,
-        paddingBottom: 10,
-        paddingHorizontal: 15,
-        backgroundColor: Colors.blue[500],
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 15,
-        borderBottomWidth: 1,
-        borderColor: "#eee",
-        
-      }}
-    >
-      <TouchableOpacity onPress={onBack}>
-        <Ionicons name="chevron-back" size={28} color={'white'}/>
-      </TouchableOpacity>
+    <CustomHeader>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        {/* LEFT */}
+        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+          <TouchableOpacity onPress={() => router.replace('/(main)/(tabs)/conversation')}>
+            <ChevronLeft color={ICON_COLOR} size={26} />
+          </TouchableOpacity>
 
-      <View>
-        <Image
-          source={{ uri: avatar }}
+          {/* Avatar */}
+          <View style={{ marginHorizontal: 10 }}>
+            <View
+              style={{
+                height: 44,
+                width: 44,
+                borderWidth: 1,
+                borderColor: "white",
+                borderRadius: 999,
+              }}
+            >
+              <Image
+                source={avatar ? { uri: avatar } : Avatars.cat}
+                style={{
+                  height: "100%",
+                  width: "100%",
+                  borderRadius: 999,
+                }}
+              />
+              {isOnline && (
+                <View
+                  style={{
+                    position: "absolute",
+                    bottom: 2,
+                    right: 2,
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: "#22c55e",
+                    borderWidth: 2,
+                    borderColor: "#000",
+                  }}
+                />
+              )}
+            </View>
+          </View>
+
+          {/* Title */}
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "600",
+                color: "white",
+              }}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: "#d1d5db",
+                marginTop: 2,
+              }}
+              numberOfLines={1}
+            >
+              {subtitle ?? (isOnline ? "Đang hoạt động" : "Ngoại tuyến")}
+            </Text>
+          </View>
+        </View>
+
+        {/* RIGHT ICONS */}
+        <View
           style={{
-            width: 48,
-            height: 48,
-            borderRadius: 40,
-            borderWidth: status === "online" ? 2 : 0,
-            // borderColor: "#4CAF50",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 20,
           }}
-        />
+        >
+          <TouchableOpacity onPress={onCallPress}>
+            <Phone color={ICON_COLOR} size={ICON_SIZE} />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={onVideoCallPress}>
+            <Video color={ICON_COLOR} size={ICON_SIZE} />
+          </TouchableOpacity>
+        </View>
       </View>
-
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 17, fontWeight: "bold", color:'white' }}>{name}</Text>
-        <Text style={{ fontSize: 13, color: "white" }}>{getStatusText()}</Text>
-      </View>
-
-      <TouchableOpacity>
-        <Ionicons name="call-outline" size={25} color={'white'} />
-      </TouchableOpacity>
-
-      <TouchableOpacity>
-        <Ionicons name="videocam-outline" size={25} color={'white'}/>
-      </TouchableOpacity>
-    </View>
+    </CustomHeader>
   );
 };
 

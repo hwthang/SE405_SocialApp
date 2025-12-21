@@ -1,253 +1,142 @@
-import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
+import { Colors } from "@/constant/Colors";
+import { Api } from "@/helper/Api";
+import { AuthHelper } from "@/helper/AuthHelper";
+import UploadHelper from "@/helper/UploadHelper";
 import * as ImagePicker from "expo-image-picker";
-import React, { useEffect, useRef, useState } from "react";
-import {
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
-} from "react-native";
-import EmojiSelector from "react-native-emoji-selector";
-
-export type InputBarProps = {
-  value: string;
-  onChange: (text: string) => void;
-  onSend: () => void;
-  onTyping?: (isTyping: boolean) => void;
-  onSendImage: (uri: string) => void;
-  onRecordVoice: (uri: string) => void;
+import { ImagePlus, Send, XCircle } from "lucide-react-native";
+import React, { useState } from "react";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+type Props = {
+  conversationId: string;
+  onMessageSent?: (msg: any) => void;
+  replyingMessage?: any;
+  onCancelReply?: () => void;
 };
 
-const InputBar = ({
-  value,
-  onChange,
-  onSend,
-  onTyping,
-  onSendImage,
-  onRecordVoice,
-}: InputBarProps) => {
-  const [openPanel, setOpenPanel] = useState(false);
-  const [openEmoji, setOpenEmoji] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordStartAt, setRecordStartAt] = useState<number | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | any>(null);
-  const [recordDuration, setRecordDuration] = useState(0);
+const InputBar = ({ conversationId, onMessageSent, replyingMessage, onCancelReply }: Props) => {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  const togglePanel = () => {
-    setOpenPanel((p) => !p);
-    setOpenEmoji(false);
-  };
-
-  const toggleEmoji = () => {
-    setOpenEmoji((p) => !p);
-    setOpenPanel(false);
-  };
-
-  const hasText = (value || "").trim().length > 0;
-
-  /* ===== RECORD ===== */
-  const startRecording = async () => {
+  const sendText = async () => {
+    if (!text.trim()) return;
     try {
-      if (isRecording) return;
-
-      const permission = await Audio.requestPermissionsAsync();
-      if (!permission.granted) {
-        alert("Vui lòng cấp quyền micro để ghi âm");
-        return;
-      }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      setLoading(true);
+      const res = await fetch(`${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${await AuthHelper.getInstance().getAccessToken()}`,
+        },
+        body: JSON.stringify({
+          type: "TEXT",
+          content: text.trim(),
+          replyToMessageId: replyingMessage?.id, // Gửi kèm ID tin nhắn reply nếu có
+        }),
       });
-
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-
-      setRecording(recording);
-      setIsRecording(true);
-      setRecordStartAt(Date.now());
-      setRecordDuration(0);
-
-      timerRef.current = setInterval(() => {
-        setRecordDuration((d) => d + 1);
-      }, 1000);
+      const json = await res.json();
+      onMessageSent?.(json.data);
+      setText("");
     } catch (e) {
-      console.error("startRecording error", e);
-      setIsRecording(false);
+      Alert.alert("Lỗi", "Không gửi được tin nhắn");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const stopRecording = async () => {
-    try {
-      if (!recording) return;
-
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-
-      setIsRecording(false);
-      setRecording(null);
-      setRecordDuration(0);
-      setRecordStartAt(null);
-
-      if (uri) onRecordVoice(uri);
-    } catch (e) {
-      console.error("stopRecording error", e);
-    }
-  };
-
-  /* ===== IMAGE ===== */
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
+   const pickMedia = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.8,
     });
 
-    if (!result.canceled && result.assets?.length) {
-      onSendImage(result.assets[0].uri);
+    if (res.canceled) return;
+
+    try {
+      setLoading(true);
+
+      const asset = res.assets[0];
+
+      const file = {
+        uri: asset.uri,
+        type: asset.type === "video" ? "video/mp4" : "image/jpeg",
+        name: asset.type === "video" ? "video.mp4" : "image.jpg",
+      } as any;
+
+      const uploader = UploadHelper.getInstance();
+      const media = await uploader.getMediaObject(file);
+
+      const resMsg = await fetch(
+        `${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${await AuthHelper.getInstance().getAccessToken()}`,
+          },
+          body: JSON.stringify({
+            type: media.type =="VIDEO" ? "FILE" : media.type,
+            mediaUrl: media.url,
+          }),
+        }
+      );
+
+      const json = await resMsg.json();
+      console.log(json)
+      onMessageSent?.(json.data);
+    } catch (e) {
+      Alert.alert("Lỗi", "Không gửi được media");
+    } finally {
+      setLoading(false);
     }
   };
 
+
   return (
-    <>
-      {/* EMOJI */}
-      {openEmoji && (
-        <View style={{ height: 260 }}>
-          <EmojiSelector
-            onEmojiSelected={(emoji) =>
-              onChange((value || "") + emoji)
-            }
-            showTabs
-            showHistory
-            showSearchBar={false}
-            columns={9}
-          />
-        </View>
-      )}
-
-      {/* PANEL */}
-      {openPanel && (
-        <View
-          style={{
-            flexDirection: "row",
-            padding: 15,
-            gap: 30,
-            justifyContent: "center",
-            borderTopWidth: 1,
-            borderColor: "#ddd",
-          }}
-        >
-          <TouchableOpacity onPress={pickImage}>
-            <Ionicons name="image-outline" size={34} color="#ff4f9a" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={isRecording ? stopRecording : startRecording}
-          >
-            <Ionicons
-              name={isRecording ? "stop-circle" : "mic-outline"}
-              size={34}
-              color={isRecording ? "red" : "#ff4f9a"}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={toggleEmoji}>
-            <Ionicons name="happy-outline" size={34} color="#ff4f9a" />
+    <View style={styles.container}>
+      {/* UI Trả lời tin nhắn */}
+      {replyingMessage && (
+        <View style={styles.replyBar}>
+          <View style={styles.replyLine} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.replyName}>Đang trả lời tin nhắn</Text>
+            <Text style={styles.replyText} numberOfLines={1}>
+              {replyingMessage.content || "[Phương tiện]"}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={onCancelReply}>
+            <XCircle size={20} color="#999" />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* RECORDING STATUS */}
-      {isRecording && (
-        <View
-          style={{
-            padding: 12,
-            backgroundColor: "#ffe3e3",
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "red", fontWeight: "bold" }}>
-            🎙️ Đang ghi âm... {recordDuration}s
-          </Text>
-        </View>
-      )}
-
-      {/* INPUT */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: 10,
-          paddingVertical: 8,
-          borderTopWidth: 1,
-          borderColor: "#ddd",
-        }}
-      >
-        <TouchableOpacity onPress={togglePanel} style={{ paddingRight: 8 }}>
-          <Ionicons
-            name={openPanel ? "close" : "add-circle-outline"}
-            size={30}
-            color="#ff4f9a"
-          />
+      <View style={styles.inputRow}>
+        <TouchableOpacity onPress={pickMedia} style={{ padding: 4 }}>
+          <ImagePlus size={24} color={Colors.blue[500]} />
         </TouchableOpacity>
-
         <TextInput
-          value={value}
+          style={styles.input}
+          placeholder="Nhắn tin..."
+          value={text}
+          onChangeText={setText}
           multiline
-          placeholder="Aa"
-          onChangeText={(text) => {
-            onChange(text);
-            onTyping?.(true);
-            setTimeout(() => onTyping?.(false), 1200);
-          }}
-          onFocus={() => {
-            setOpenPanel(false);
-            setOpenEmoji(false);
-          }}
-          style={{
-            flex: 1,
-            fontSize: 16,
-            paddingHorizontal: 14,
-            marginHorizontal: 10,
-            backgroundColor: "#f1f1f1",
-            borderRadius: 25,
-            maxHeight: 100,
-          }}
         />
-
-        <TouchableOpacity
-          onPress={() => {
-            if (isRecording) stopRecording();
-            else if (hasText) onSend();
-            else startRecording();
-
-            setOpenPanel(false);
-            setOpenEmoji(false);
-          }}
-        >
-          <Ionicons
-            name={isRecording ? "stop-circle" : hasText ? "send" : "mic-outline"}
-            size={28}
-            color={isRecording ? "red" : "#ff4f9a"}
-          />
+        <TouchableOpacity onPress={sendText} disabled={loading} style={styles.sendBtn}>
+          {loading ? <ActivityIndicator size="small" color="#fff" /> : <Send size={18} color="#fff" />}
         </TouchableOpacity>
       </View>
-   </>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: "#eee" },
+  replyBar: { flexDirection: "row", padding: 10, backgroundColor: "#f8f9fa", alignItems: "center", gap: 10 },
+  replyLine: { width: 3, height: "100%", backgroundColor: Colors.blue[500], borderRadius: 2 },
+  replyName: { fontSize: 12, fontWeight: "bold", color: Colors.blue[500] },
+  replyText: { fontSize: 13, color: "#666" },
+  inputRow: { flexDirection: "row", alignItems: "center", padding: 10, gap: 8 },
+  input: { flex: 1, maxHeight: 100, minHeight: 40, paddingHorizontal: 15, backgroundColor: "#f1f1f1", borderRadius: 20 },
+  sendBtn: { backgroundColor: Colors.blue[500], width: 38, height: 38, borderRadius: 19, justifyContent: "center", alignItems: "center" },
+});
 
 export default InputBar;

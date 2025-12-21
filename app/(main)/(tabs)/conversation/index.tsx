@@ -13,6 +13,7 @@ import { CustomBottomModal } from "@/component/custom/CustomBottomModal";
 import { Colors } from "@/constant/Colors";
 import { Api } from "@/helper/Api";
 import { AuthHelper } from "@/helper/AuthHelper";
+import { getRelativeTimeFromISO } from "@/utils/date";
 import ConversationItem from "../../../../component/message/ConversationItem";
 import SearchBar from "../../../../component/message/SearchBar";
 
@@ -69,6 +70,8 @@ export default function ConversationScreen() {
       const result = await response.json();
       if (!result?.data) return;
 
+      console.log(result.data.members);
+
       const formatted: Conversation[] = result.data.map((conv: any) => {
         const displayUser =
           conv.type === "DIRECT"
@@ -78,15 +81,37 @@ export default function ConversationScreen() {
         const lastMessage =
           conv.messages && conv.messages.length > 0 ? conv.messages[0] : null;
 
+        const isMe = lastMessage?.senderId === myUserId;
+
+        let lastMessageText = "Hãy bắt đầu trò chuyện nào";
+
+        if (!lastMessage.deletedAt) {
+          if (lastMessage.type === "TEXT") {
+            lastMessageText = lastMessage.content ?? "";
+          } else if (lastMessage.type === "IMAGE") {
+            lastMessageText = isMe
+              ? "Bạn đã gửi một hình ảnh"
+              : "Đã gửi một hình ảnh";
+          } else if (lastMessage.type === "FILE") {
+            lastMessageText = isMe ? "Bạn đã gửi một tệp" : "Đã gửi một tệp";
+          }
+
+          if (isMe && lastMessage.type === "TEXT") {
+            lastMessageText = `Bạn: ${lastMessageText}`;
+          }
+        }
+
         return {
           id: conv.id,
           name: displayUser?.name ?? "Unknown",
           avatar: displayUser?.avatarUrl ?? null,
           isOnline: displayUser?.isOnline ?? false,
-          lastMessage: lastMessage?.content ?? "Hãy bắt đầu trò chuyện nào",
-          time: lastMessage?.createdAt ?? "",
+          lastMessage: lastMessageText,
+          time: lastMessage.deletedAt ? "" : lastMessage?.createdAt,
         };
       });
+
+      console.log(formatted.filter);
 
       setConversations(formatted);
     } catch (e) {
@@ -102,15 +127,12 @@ export default function ConversationScreen() {
       setLoadingFriends(true);
       const token = await AuthHelper.getInstance().getAccessToken();
 
-      const response = await fetch(
-        `${Api.getInstance().baseUrl}/friends`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${Api.getInstance().baseUrl}/friends`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const result = await response.json();
       if (!result?.data) return;
@@ -139,6 +161,7 @@ export default function ConversationScreen() {
 
   const filteredConversations = useMemo(() => {
     if (!search.trim()) return conversations;
+    console.log(conversations);
     return conversations.filter((c) =>
       c.name.toLowerCase().includes(search.toLowerCase())
     );
@@ -148,9 +171,7 @@ export default function ConversationScreen() {
 
   const toggleFriend = (id: string) => {
     setSelectedFriendIds((prev) =>
-      prev.includes(id)
-        ? prev.filter((x) => x !== id)
-        : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
@@ -179,9 +200,7 @@ export default function ConversationScreen() {
             backgroundColor: checked ? Colors.blue[500] : "transparent",
           }}
         >
-          {checked && (
-            <Text style={{ color: "white", fontSize: 14 }}>✓</Text>
-          )}
+          {checked && <Text style={{ color: "white", fontSize: 14 }}>✓</Text>}
         </View>
 
         <Text style={{ fontSize: 16 }}>{item.name}</Text>
@@ -270,12 +289,14 @@ export default function ConversationScreen() {
             avatar={item.avatar}
             name={item.name}
             lastMessage={item.lastMessage}
-            time={item.time}
+            time={getRelativeTimeFromISO(item.time as string)}
             isOnline={item.isOnline}
             onPress={() =>
               router.push({
                 pathname: "/(main)/conversationDetail/[id]",
-                params: { id: item.id },
+                params: {
+                  id: item.id,
+                },
               })
             }
           />

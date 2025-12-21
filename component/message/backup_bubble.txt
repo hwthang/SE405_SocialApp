@@ -1,0 +1,92 @@
+import React, { useState } from "react";
+import {
+  Pressable,
+  Text,
+  View,
+  StyleSheet,
+  LayoutAnimation,
+} from "react-native";
+import ReactionBar from "./ReactionBar";
+import MessageActions from "./MessageActions";
+import MessageMedia from "./MessageMedia";
+
+type MessageBubbleProps = {
+  message: any;
+  isMe: boolean;
+
+  onReact: (messageId: string, reaction: string) => void;
+  onUnreact: (messageId: string) => void;
+  onReply: (message: any) => void;
+  onDelete: (messageId: string) => void;
+};
+
+const MessageBubble = ({
+  message,
+  isMe,
+  onReact,
+  onUnreact,
+  onReply,
+  onDelete,
+}: MessageBubbleProps) => {
+  const [showActions, setShowActions] = useState(false);
+
+  const toggleActions = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowActions((prev) => !prev);
+  };
+
+  return (
+    <View
+      style={[
+        styles.wrapper,
+        { alignItems: isMe ? "flex-end" : "flex-start" },
+      ]}
+    >
+      <Pressable
+        onLongPress={toggleActions}
+        delayLongPress={250}
+        style={[
+          styles.bubble,
+          {
+            backgroundColor:
+              message.type === "TEXT"
+                ? isMe
+                  ? "#3b82f6"
+                  : "#e5e7eb"
+                : "transparent",
+          },
+        ]}
+      >
+        {message.type === "TEXT" && (
+          <Text style={{ color: isMe ? "#fff" : "#000" }}>
+            {message.content}
+          </Text>
+        )}
+
+        {(message.type === "IMAGE" || message.type === "VIDEO") && (
+          <MessageMedia type={message.type} uri={message.mediaUrl} />
+        )}
+      </Pressable>
+
+      {/* ACTION CONTAINER */}
+      {showActions && (
+        <View style={styles.actionContainer}>
+          <ReactionBar
+            onSelect={(reaction) =>
+              onReact(message.id, reaction)
+            }
+          />
+
+          <MessageActions
+            hasReaction={!!message.reaction}
+            onUnreact={() => onUnreact(message.id)}
+            onReply={() => onReply(message)}
+            onDelete={() => onDelete(message.id)}
+          />
+        </View>
+      )}
+    </View>
+  );
+};
+
+export default MessageBubble;

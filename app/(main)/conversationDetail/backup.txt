@@ -1,0 +1,278 @@
+import * as ImagePicker from "expo-image-picker";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  View,
+} from "react-native";
+
+import ChatHeader from "@/component/message/ChatHeader";
+import InputBar from "@/component/message/InputBar";
+import MessageList from "@/component/message/MessageList";
+
+import { Api } from "@/helper/Api";
+import { AuthHelper } from "@/helper/AuthHelper";
+import UploadHelper from "@/helper/UploadHelper";
+
+/* ================= TYPES ================= */
+type MessageType = {
+  id: string;
+  text?: string;
+  image?: string;
+  audio?: string;
+  isMe: boolean;
+  reaction?: string;
+  createdAt: string;
+  uploading?: boolean; // ✅ loading state
+};
+
+/* ================= SCREEN ================= */
+export default function ChatDetailScreen() {
+  const router = useRouter();
+  const { id: conversationId, name, avatarUrl } =
+    useLocalSearchParams<{
+      id: string;
+      name: string;
+      avatarUrl: string;
+    }>();
+
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<MessageType[]>([]);
+  const [typing, setTyping] = useState(false);
+
+  /* =====================================================
+   * 📌 HELPER
+   * ===================================================== */
+  const buildUploadFile = (asset: ImagePicker.ImagePickerAsset) => {
+    const isVideo = asset.type === "video";
+    return {
+      uri: asset.uri,
+      type: isVideo ? "video/mp4" : "image/jpeg",
+      name: isVideo ? "video.mp4" : "image.jpg",
+    } as any;
+  };
+
+  /* =====================================================
+   * 📌 FETCH MESSAGE
+   * ===================================================== */
+  const fetchMessages = async () => {
+    try {
+      const token = await AuthHelper.getInstance().getAccessToken();
+      const myUserId = await AuthHelper.getInstance().getUserId();
+
+      const res = await fetch(
+        `${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const json = await res.json();
+
+
+      console.table(json)
+
+      const formatted: MessageType[] = json.data.items.map((m: any) => ({
+        id: m.id,
+        text: m.type === "TEXT" ? m.content : undefined,
+        image: m.type === "IMAGE" ? m.mediaUrl : undefined,
+        audio: m.type === "FILE" ? m.mediaUrl : undefined,
+        isMe: m.senderId === myUserId,
+        reaction: m.reaction,
+        createdAt: m.createdAt,
+      }));
+
+      formatted.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() -
+          new Date(b.createdAt).getTime()
+      );
+      console.log(formatted)
+
+      setMessages(formatted);
+    } catch (err) {
+      console.error("❌ fetchMessages error:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchMessages();
+  }, []);
+
+  /* =====================================================
+   * 📌 SEND CORE
+   * ===================================================== */
+  const sendMessage = async (payload: any) => {
+    const token = await AuthHelper.getInstance().getAccessToken();
+    await fetch(
+      `${Api.getInstance().baseUrl}/conversations/${conversationId}/messages`,
+      {
+       method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+  };
+
+  /* ================= HANDLERS ================= */
+
+  // 🔹 SEND TEXT
+  const handleSend = async () => {
+    if (!message.trim()) return;
+
+    const tempId = `temp-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        text: message,
+        isMe: true,
+        createdAt: now,
+      },
+    ]);
+
+    setMessage("");
+
+    await sendMessage({
+      type: "TEXT",
+      content: message,
+    });
+  };
+
+  // 🔹 SEND IMAGE / VIDEO (WITH LOADING)
+  const handleSendImage = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.8,
+    });
+
+    if (res.canceled) return;
+
+    const tempId = `temp-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    // ✅ optimistic placeholder
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        isMe: true,
+        createdAt: now,
+        uploading: true,
+      },
+    ]);
+
+    try {
+      const asset = res.assets[0];
+      const file = buildUploadFile(asset);
+      const media = await UploadHelper.getInstance().getMediaObject(file);
+
+      // ✅ replace loading message
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId
+            ? {
+                ...m,
+                uploading: false,
+                image: media.type === "IMAGE" ? media.url : undefined,
+                audio: media.type === "VIDEO" ? media.url : undefined,
+              }
+            : m
+        )
+      );
+
+      await sendMessage({
+        type: media.type === "IMAGE" ? "IMAGE" : "FILE",
+        mediaUrl: media.url,
+      });
+    } catch (err) {
+      console.error("❌ upload error:", err);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    }
+  };
+
+  // 🔹 VOICE
+  const handleRecordVoice = async (file: any) => {
+    const tempId = `temp-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        isMe: true,
+        createdAt: now,
+        uploading: true,
+      },
+    ]);
+
+    try {
+      const media = await UploadHelper.getInstance().getMediaObject(file);
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId
+            ? { ...m, uploading: false, audio: media.url }
+            : m
+        )
+      );
+
+      await sendMessage({
+        type: "FILE",
+        mediaUrl: media.url,
+      });
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    }
+  };
+
+  /* =====================================================
+   * 📌 SORT
+   * ===================================================== */
+  const sortedMessages = useMemo(() => {
+    return [...messages].sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() -
+        new Date(b.createdAt).getTime()
+    );
+  }, [messages]);
+
+  /* ================= RENDER ================= */
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#f8f8f8", marginBottom: 30 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ChatHeader name={name} avatar={avatarUrl} onBack={() => router.back()} />
+
+      <View style={{ flex: 1 }}>
+        <MessageList
+          messages={sortedMessages}
+          typing={typing}
+          renderUploading={() => (
+            <ActivityIndicator size="small" color="#999" />
+          )}
+        />
+      </View>
+
+      <InputBar
+        value={message}
+        onChange={setMessage}
+        onSend={handleSend}
+        onTyping={setTyping}
+        onSendImage={handleSendImage}
+        onRecordVoice={handleRecordVoice}
+      />
+    </KeyboardAvoidingView>
+  );
+}

@@ -64,7 +64,7 @@ class UploadHelper {
 
     const sigJson: SignatureResponse = await sigRes.json();
 
-    console.log(sigJson)
+
 
     const {
       timestamp,
@@ -96,12 +96,14 @@ class UploadHelper {
     }
 
     const uploadJson = await uploadRes.json();
-
-    // 5. Lọc response trả về
-    return {
+    const json: MediaObject = {
       type: uploadJson.resource_type === "video" ? "VIDEO" : "IMAGE",
       url: uploadJson.secure_url || uploadJson.url,
-    };
+    }
+
+    console.log(json)
+    // 5. Lọc response trả về
+    return json;
   }
 
   /**

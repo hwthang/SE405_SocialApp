@@ -1,0 +1,191 @@
+import {
+  Image as ImageIcon,
+  Mic,
+  Send,
+} from "lucide-react-native";
+import React, { useState } from "react";
+import {
+  Keyboard,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
+
+type Props = {
+  value: string;
+  onChange: (text: string) => void;
+  onSend: () => void;
+  onTyping?: (typing: boolean) => void;
+  onSendImage: () => void;       // 🔑 CHỈ LÀ CALLBACK
+  onRecordVoice: (file: any) => void;
+};
+
+export default function InputBar({
+  value,
+  onChange,
+  onSend,
+  onTyping,
+  onSendImage,
+  onRecordVoice,
+}: Props) {
+  const [focused, setFocused] = useState(false);
+
+  const handleChangeText = (text: string) => {
+    onChange(text);
+    onTyping?.(text.length > 0);
+  };
+
+  const handleSendPress = () => {
+    if (!value.trim()) return;
+    Keyboard.dismiss();
+    onSend();
+    onTyping?.(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* IMAGE PICK */}
+      <Pressable
+        style={styles.iconBtn}
+        onPress={onSendImage}   // ✅ KHÔNG () — CỰC KỲ QUAN TRỌNG
+      >
+        <ImageIcon size={22} color="#555" />
+      </Pressable>
+
+      {/* INPUT */}
+      <TextInput
+        value={value}
+        onChangeText={handleChangeText}
+        placeholder="Nhập tin nhắn..."
+        placeholderTextColor="#999"
+        multiline
+        style={[
+          styles.input,
+          focused && { borderColor: "#007AFF" },
+        ]}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+      />
+
+      {/* SEND / MIC */}
+      {value.trim() ? (
+        <Pressable style={styles.sendBtn} onPress={handleSendPress}>
+          <Send size={20} color="#fff" />
+        </Pressable>
+      ) : (
+        <Pressable
+          style={styles.iconBtn}
+          onPress={() => {
+            // TODO: mở record audio → trả file
+            // onRecordVoice(file)
+          }}
+        >
+          <Mic size={22} color="#555" />
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+/* ================= STYLES ================= */
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 8,
+    paddingVertical: Platform.OS === "ios" ? 12 : 8,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    backgroundColor: "#fff",
+  },
+
+  iconBtn: {
+    padding: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  input: {
+    flex: 1,
+    maxHeight: 120,
+    minHeight: 40,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    fontSize: 15,
+    color: "#222",
+    backgroundColor: "#f9f9f9",
+  },
+
+  sendBtn: {
+    backgroundColor: "#007AFF",
+    borderRadius: 20,
+    padding: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+});
+
+
+  {/* <FlatList
+          ref={flatListRef}
+          style={{ flex: 1 }}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: 12 }}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
+          renderItem={({ item }) => {
+            const isMe = item.senderId === myId;
+
+            return (
+              <View
+                style={{
+                  alignSelf: isMe ? "flex-end" : "flex-start",
+                  backgroundColor:
+                    item.type === "TEXT"
+                      ? isMe
+                        ? "#3b82f6"
+                        : "#e5e7eb"
+                      : "transparent",
+                  padding: item.type === "TEXT" ? 10 : 0,
+                  borderRadius: 12,
+                  marginBottom: 8,
+                  maxWidth: "75%",
+                }}
+              >
+          
+                {item.type === "TEXT" && (
+                  <Text style={{ color: isMe ? "#fff" : "#000" }}>
+                    {item.content}
+                  </Text>
+                )}
+
+            
+                {(item.type === "IMAGE" || item.type === "VIDEO") && (
+                  <View
+                    style={{
+                      backgroundColor: Colors.blue[500],
+                      padding: 6,
+                      borderRadius: 10,
+                    }}
+                  >
+                    <MessageMedia
+                      type={item.type}
+                      uri={item.mediaUrl}
+                    />
+                  </View>
+                )}
+              </View>
+            );
+          }}
+        /> */}
