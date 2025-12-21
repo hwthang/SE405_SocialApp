@@ -4,6 +4,8 @@ export class Api {
 
   // 👉 URL backend CHỨA CỨNG
   public readonly baseUrl: string = 'http://172.16.0.150:3000/api';
+  public readonly socketUrl: string = 'http://172.16.0.150:3000';
+
 
   private constructor() {}
 
