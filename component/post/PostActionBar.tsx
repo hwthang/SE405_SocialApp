@@ -7,14 +7,14 @@ import {
   MoreHorizontal,
   Share2,
 } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { CommentModal } from "./CommentModal"; // Đảm bảo đường dẫn này đúng
+import { CommentModal } from "./CommentModal";
 
 /* ================= TYPES ================= */
 
@@ -30,14 +30,12 @@ type ApiComment = {
   createdAt: string;
   author: ApiAuthor;
   replies: ApiComment[];
-  liked?: boolean;
-  likeCount?: number;
+  liked: boolean;
+  likeCount: number;
 };
 
 type Props = {
   postId: string;
-  initialLiked?: boolean;
-  initialLikeCount?: number;
   commentCount?: number;
 };
 
@@ -45,14 +43,15 @@ type Props = {
 
 const PostActionBar = ({
   postId,
-  initialLiked = false,
-  initialLikeCount = 0,
-  commentCount = 0,
+  commentCount: initialCommentCount = 0,
 }: Props) => {
-  const [liked, setLiked] = useState(initialLiked);
-  const [likeCount, setLikeCount] = useState(initialLikeCount);
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [commentCount, setCommentCount] = useState(initialCommentCount);
   const [visible, setVisible] = useState(false);
   const [comments, setComments] = useState<ApiComment[]>([]);
+
+  const api = Api.getInstance();
 
   /* ================= HELPERS ================= */
 
@@ -61,47 +60,91 @@ const PostActionBar = ({
     "Content-Type": "application/json",
   });
 
-  const fetchComments = async () => {
-    const api = Api.getInstance();
-    const headers = await getAuthHeader();
-    const res = await fetch(`${api.baseUrl}/posts/${postId}/comments`, { headers });
-    const json = await res.json();
+  /* ================= FETCH DATA ================= */
 
-    const normalize = (list: any[]): ApiComment[] =>
-      list.map((c) => ({
-        ...c,
-        liked: c.liked ?? false,
-        likeCount: c.likeCount ?? 0,
-        replies: normalize(c.replies || []),
-      }));
+  // Gọi API lấy chi tiết Post để cập nhật Reaction
+  const fetchPostDetail = async () => {
+    try {
+      const headers = await getAuthHeader();
+      const userId = await AuthHelper.getInstance().getUserId();
+      
+      const res = await fetch(`${api.baseUrl}/posts/${postId}`, { headers });
+      const json = await res.json();
 
-    setComments(normalize(json.data || []));
+      if (res.ok && json.data) {
+        const reactions = json.data.reactions || [];
+        setLikeCount(reactions.length);
+        setLiked(reactions.some((r: any) => r.userId === userId));
+      }
+    } catch (error) {
+      console.error("Fetch post detail error:", error);
+    }
   };
+
+  const fetchComments = async () => {
+    try {
+      const headers = await getAuthHeader();
+      const userId = await AuthHelper.getInstance().getUserId();
+      
+      const res = await fetch(`${api.baseUrl}/posts/${postId}/comments`, { headers });
+      const json = await res.json();
+
+      // Dựa trên data structure json.data.items
+      const rawItems = json.data?.items || [];
+
+      const normalize = (list: any[]): ApiComment[] =>
+        list.map((c) => ({
+          ...c,
+          liked: Array.isArray(c.reactions) ? c.reactions.some((r: any) => r.userId === userId) : false,
+          likeCount: Array.isArray(c.reactions) ? c.reactions.length : 0,
+          replies: normalize(c.replies || []),
+        }));
+
+      setComments(normalize(rawItems));
+      setCommentCount(rawItems.length); // Cập nhật lại số lượng comment thực tế
+    } catch (error) {
+      console.error("Fetch comments error:", error);
+    }
+  };
+
+  // Tự động fetch data khi postId thay đổi
+  useEffect(() => {
+    if (postId) {
+      fetchPostDetail();
+      fetchComments()
+    }
+  }, [postId]);
 
   /* ================= HANDLERS ================= */
 
   const handleLikePost = async () => {
-    const api = Api.getInstance();
     const headers = await getAuthHeader();
+    const prevLiked = liked;
     
-    // Optimistic UI cho Post
-    setLiked((p) => !p);
-    setLikeCount((c) => (liked ? c - 1 : c + 1));
+    // Optimistic UI
+    setLiked(!prevLiked);
+    setLikeCount((c) => (prevLiked ? Math.max(0, c - 1) : c + 1));
 
-    await fetch(
-      liked
-        ? `${api.baseUrl}/reactions?targetId=${postId}&targetType=POST`
-        : `${api.baseUrl}/reactions`,
-      {
-        method: liked ? "DELETE" : "POST",
-        headers,
-        body: liked ? undefined : JSON.stringify({ 
-          targetType: "POST", 
-          targetId: postId, 
-          type: "LOVE" 
-        }),
-      }
-    );
+    try {
+      const res = await fetch(
+        prevLiked
+          ? `${api.baseUrl}/reactions?targetId=${postId}&targetType=POST`
+          : `${api.baseUrl}/reactions`,
+        {
+          method: prevLiked ? "DELETE" : "POST",
+          headers,
+          body: prevLiked ? undefined : JSON.stringify({ 
+            targetType: "POST", 
+            targetId: postId, 
+            type: "LOVE" 
+          }),
+        }
+      );
+      if (!res.ok) throw new Error();
+    } catch (e) {
+      setLiked(prevLiked);
+      setLikeCount((c) => (prevLiked ? c + 1 : Math.max(0, c - 1)));
+    }
   };
 
   const handleOpenComments = async () => {
@@ -110,29 +153,23 @@ const PostActionBar = ({
   };
 
   const handleSendComment = async (content: string, parentCommentId: string | null) => {
-    const api = Api.getInstance();
     const headers = await getAuthHeader();
-
     await fetch(`${api.baseUrl}/posts/${postId}/comments`, {
       method: "POST",
       headers,
       body: JSON.stringify({ content, parentCommentId }),
     });
-
-    await fetchComments(); // Reload danh sách sau khi gửi
+    await fetchComments();
   };
 
-  const handleLikeComment = async (id: string, currentLiked?: boolean) => {
-    const api = Api.getInstance();
+  const handleLikeComment = async (id: string, currentLiked: boolean) => {
     const headers = await getAuthHeader();
-
-    // Optimistic UI cho Comment (đệ quy)
     const update = (list: ApiComment[]): ApiComment[] =>
       list.map((c) => ({
         ...c,
         ...(c.id === id && {
           liked: !currentLiked,
-          likeCount: currentLiked ? (c.likeCount || 1) - 1 : (c.likeCount || 0) + 1,
+          likeCount: currentLiked ? Math.max(0, c.likeCount - 1) : c.likeCount + 1,
         }),
         replies: update(c.replies || []),
       }));
@@ -155,8 +192,6 @@ const PostActionBar = ({
     );
   };
 
-  /* ================= RENDER ================= */
-
   return (
     <View>
       <View style={styles.bar}>
@@ -166,9 +201,9 @@ const PostActionBar = ({
             color={liked ? "#e53935" : "#444"} 
             fill={liked ? "#e53935" : "transparent"} 
           />
-          {/* <Text style={[styles.barLabel, { color: liked ? "#e53935" : "#444" }]}>
-            {likeCount > 0 ? likeCount : ""}
-          </Text> */}
+          <Text style={[styles.barLabel, { color: liked ? "#e53935" : "#444" }]}>
+             {likeCount > 0 ? likeCount : ""}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.barItem} onPress={handleOpenComments}>
@@ -190,7 +225,6 @@ const PostActionBar = ({
         </TouchableOpacity>
       </View>
 
-      {/* CUSTOM MODAL THỦ CÔNG */}
       <CommentModal
         visible={visible}
         onClose={() => setVisible(false)}
@@ -206,26 +240,8 @@ const PostActionBar = ({
 export default PostActionBar;
 
 const styles = StyleSheet.create({
-  bar: { 
-    flexDirection: "row", 
-    justifyContent: "space-between", 
-    alignItems: "center", 
-    paddingVertical: 10, 
-    paddingHorizontal: 16, 
-  
-  },
-  barItem: { 
-    flexDirection: "row", 
-    gap: 4, 
-    alignItems: "center", 
-    paddingHorizontal: 6, 
-    paddingVertical: 4 
-  },
-  barLabel: { 
-    fontSize: 13, 
-    color: "#444" 
-  },
-  moreButton: { 
-    padding: 6 
-  },
+  bar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, paddingHorizontal: 16 },
+  barItem: { flexDirection: "row", gap: 4, alignItems: "center", paddingHorizontal: 6, paddingVertical: 4 },
+  barLabel: { fontSize: 13, color: "#444", fontWeight: "600" },
+  moreButton: { padding: 6 },
 });

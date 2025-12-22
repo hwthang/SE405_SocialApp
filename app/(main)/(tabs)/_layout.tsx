@@ -1,4 +1,3 @@
-import BackHeader from "@/component/BackHeader";
 import MainHeader from "@/component/MainHeader";
 import { Colors } from "@/constant/Colors";
 import { Avatars } from "@/public/img/avatar";
@@ -6,7 +5,13 @@ import { UserService } from "@/service/UserService";
 import { Tabs } from "expo-router";
 import { Home, MessageSquare, Plus, Users } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import { DeviceEventEmitter, Image, Platform, StyleSheet, View } from "react-native"; // 🔥 Thêm DeviceEventEmitter
+import {
+  DeviceEventEmitter,
+  Image,
+  Platform,
+  StyleSheet,
+  View,
+} from "react-native"; // 🔥 Thêm DeviceEventEmitter
 
 const TabLayout = () => {
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -26,9 +31,12 @@ const TabLayout = () => {
     fetchUserData();
 
     // 🔥 LẮNG NGHE SỰ KIỆN CẬP NHẬT TỪ EDIT PROFILE
-    const subscription = DeviceEventEmitter.addListener("userProfileUpdated", () => {
-      fetchUserData();
-    });
+    const subscription = DeviceEventEmitter.addListener(
+      "userProfileUpdated",
+      () => {
+        fetchUserData();
+      }
+    );
 
     return () => {
       subscription.remove(); // Hủy lắng nghe khi component unmount
@@ -71,7 +79,7 @@ const TabLayout = () => {
       <Tabs.Screen
         name="post/index"
         options={{
-          header: () => <BackHeader />,
+          headerShown: false,
           title: "",
           tabBarIcon: () => (
             <View style={styles.floatingButton}>
@@ -96,7 +104,12 @@ const TabLayout = () => {
           header: () => <MainHeader />,
           title: "Cá nhân",
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.avatarContainer, focused && { borderColor: color }]}>
+            <View
+              style={[
+                styles.avatarContainer,
+                focused && { borderColor: color },
+              ]}
+            >
               <Image
                 source={avatar ? { uri: avatar } : Avatars.cat}
                 style={styles.avatarIcon}

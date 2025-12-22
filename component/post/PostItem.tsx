@@ -22,7 +22,7 @@ const PostItem = ({ post }: PostItemProps) => {
 
       {/* Content */}
       <View style={styles.content}>
-        {post.text ? <PostCaption text={post.text} /> : null}
+        {post.text ? <PostCaption text={post.text} /> : <View />}
 
         {post.media?.length > 0 ? <PostMedia media={post.media} /> : null}
       </View>
@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
   wrapper: {
     marginBottom: 4,
     backgroundColor: "#FFF",
-    
+
     paddingTop: 10,
   },
   section: {
