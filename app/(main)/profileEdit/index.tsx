@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -23,7 +24,6 @@ const EditProfileScreen = () => {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
-  // Form State
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -50,24 +50,20 @@ const EditProfileScreen = () => {
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Lỗi",
-        "Bạn cần cấp quyền truy cập thư viện ảnh để đổi avatar."
-      );
+      Alert.alert("Lỗi", "Bạn cần cấp quyền thư viện ảnh.");
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.7,
     });
-
     if (!result.canceled) {
       setAvatarUri(result.assets[0].uri);
     }
   };
+
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert("Thông báo", "Tên không được để trống");
@@ -84,12 +80,7 @@ const EditProfileScreen = () => {
           type: "image/jpeg",
           name: `avatar_${Date.now()}.jpg`,
         } as any;
-
-        const uploadRes = await UploadHelper.getInstance().getMediaObject(
-          fileToUpload
-        );
-
-        // 🔥 QUAN TRỌNG
+        const uploadRes = await UploadHelper.getInstance().getMediaObject(fileToUpload);
         finalAvatarUrl = uploadRes.url;
       } else {
         finalAvatarUrl = avatarUri || undefined;
@@ -101,11 +92,13 @@ const EditProfileScreen = () => {
         ...(finalAvatarUrl ? { avatarUrl: finalAvatarUrl } : {}),
       });
 
+      // 🔥 PHÁT TÍN HIỆU ĐỂ TABBAR UPDATE AVATAR
+      DeviceEventEmitter.emit("userProfileUpdated");
+
       Alert.alert("Thành công", "Hồ sơ đã được cập nhật", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (error) {
-      console.error("Update profile error:", error);
       Alert.alert("Lỗi", "Cập nhật hồ sơ thất bại");
     } finally {
       setLoading(false);
@@ -122,23 +115,13 @@ const EditProfileScreen = () => {
 
   return (
     <View style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Avatar Picker Section */}
           <View style={styles.avatarContainer}>
             <TouchableOpacity onPress={handlePickImage} activeOpacity={0.8}>
               <View style={styles.avatarWrapper}>
                 <Image
-                  source={{
-                    uri:
-                      avatarUri ||
-                      `https://ui-avatars.com/api/?name=${
-                        name || "User"
-                      }&background=random`,
-                  }}
+                  source={{ uri: avatarUri || `https://ui-avatars.com/api/?name=${name || "User"}&background=random` }}
                   style={styles.avatar}
                 />
                 <View style={styles.cameraBtn}>
@@ -149,45 +132,19 @@ const EditProfileScreen = () => {
             <Text style={styles.avatarHint}>Thay đổi ảnh đại diện</Text>
           </View>
 
-          {/* Form Inputs */}
           <View style={styles.form}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Họ và tên</Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Nhập họ và tên..."
-                placeholderTextColor="#9CA3AF"
-              />
+              <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Nhập họ và tên..." />
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Tiểu sử (Bio)</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={bio}
-                onChangeText={setBio}
-                placeholder="Nhập tiểu sử ngắn về bạn..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
+              <TextInput style={[styles.input, styles.textArea]} value={bio} onChangeText={setBio} placeholder="Tiểu sử..." multiline />
             </View>
           </View>
 
-          {/* Save Button */}
-          <TouchableOpacity
-            style={[styles.saveBtn, loading && { opacity: 0.7 }]}
-            onPress={handleSave}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.saveBtnText}>Lưu thay đổi</Text>
-            )}
+          <TouchableOpacity style={[styles.saveBtn, loading && { opacity: 0.7 }]} onPress={handleSave} disabled={loading}>
+            {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Lưu thay đổi</Text>}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -195,115 +152,22 @@ const EditProfileScreen = () => {
   );
 };
 
-export default EditProfileScreen;
 
+export default EditProfileScreen
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFF",
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === "ios" ? 50 : 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  scrollContent: {
-    padding: 24,
-  },
-  avatarContainer: {
-    alignItems: "center",
-    marginBottom: 32,
-  },
-  avatarWrapper: {
-    position: "relative",
-  },
-  avatar: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#F3F4F6",
-    borderWidth: 4,
-    borderColor: "#F3F4F6",
-  },
-  cameraBtn: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    backgroundColor: Colors.blue[600],
-    padding: 10,
-    borderRadius: 20,
-    borderWidth: 3,
-    borderColor: "#FFF",
-  },
-  avatarHint: {
-    marginTop: 12,
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.blue[600],
-  },
-  form: {
-    marginBottom: 40,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  input: {
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: "#1F2937",
-  },
-  textArea: {
-    height: 120,
-    paddingTop: 14,
-  },
-  saveBtn: {
-    backgroundColor: Colors.blue[600],
-    height: 54,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: Colors.blue[600],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  saveBtnText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  container: { flex: 1, backgroundColor: "#FFF" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  scrollContent: { padding: 24 },
+  avatarContainer: { alignItems: "center", marginBottom: 32 },
+  avatarWrapper: { position: "relative" },
+  avatar: { width: 110, height: 110, borderRadius: 55, backgroundColor: "#F3F4F6", borderWidth: 4, borderColor: "#F3F4F6" },
+  cameraBtn: { position: "absolute", bottom: 0, right: 0, backgroundColor: Colors.blue[600], padding: 10, borderRadius: 20, borderWidth: 3, borderColor: "#FFF" },
+  avatarHint: { marginTop: 12, fontSize: 14, fontWeight: "600", color: Colors.blue[600] },
+  form: { marginBottom: 40 },
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 8, marginLeft: 4 },
+  input: { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: "#1F2937" },
+  textArea: { height: 120, paddingTop: 14 },
+  saveBtn: { backgroundColor: Colors.blue[600], height: 54, borderRadius: 16, justifyContent: "center", alignItems: "center", elevation: 4 },
+  saveBtnText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
 });

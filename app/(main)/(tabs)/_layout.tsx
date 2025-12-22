@@ -6,19 +6,33 @@ import { UserService } from "@/service/UserService";
 import { Tabs } from "expo-router";
 import { Home, MessageSquare, Plus, Users } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import { Image, Platform, StyleSheet, View } from "react-native";
+import { DeviceEventEmitter, Image, Platform, StyleSheet, View } from "react-native"; // 🔥 Thêm DeviceEventEmitter
 
 const TabLayout = () => {
   const [avatar, setAvatar] = useState<string | null>(null);
+
   const fetchUserData = async () => {
-    const result = (await UserService.getInstance().getMe()) as any;
-    const avatarUrl = result?.avatarUrl;
-    setAvatar(avatarUrl);
-    
+    try {
+      const result = (await UserService.getInstance().getMe()) as any;
+      if (result?.avatarUrl) {
+        setAvatar(result.avatarUrl);
+      }
+    } catch (error) {
+      console.error("Fetch Tab Avatar error:", error);
+    }
   };
 
   useEffect(() => {
     fetchUserData();
+
+    // 🔥 LẮNG NGHE SỰ KIỆN CẬP NHẬT TỪ EDIT PROFILE
+    const subscription = DeviceEventEmitter.addListener("userProfileUpdated", () => {
+      fetchUserData();
+    });
+
+    return () => {
+      subscription.remove(); // Hủy lắng nghe khi component unmount
+    };
   }, []);
 
   return (
@@ -28,23 +42,14 @@ const TabLayout = () => {
         tabBarInactiveTintColor: Colors.gray[500],
         tabBarStyle: {
           backgroundColor: "#fff",
-          height: Platform.OS === "ios" ? 88 : 100, // Chiều cao chuẩn hơn cho Mobile
+          height: Platform.OS === "ios" ? 88 : 100,
           borderTopColor: "#eee",
-          paddingTop: 8,
           paddingBottom: Platform.OS === "ios" ? 28 : 10,
           elevation: 10,
-          shadowColor: "#000",
-          shadowOpacity: 0.05,
-          shadowOffset: { width: 0, height: -2 },
-          shadowRadius: 4,
         },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "500",
-        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "500" },
       }}
     >
-      {/* 🏠 Trang chủ */}
       <Tabs.Screen
         name="home/index"
         options={{
@@ -54,7 +59,6 @@ const TabLayout = () => {
         }}
       />
 
-      {/* 👥 Bạn bè */}
       <Tabs.Screen
         name="friend/index"
         options={{
@@ -64,7 +68,6 @@ const TabLayout = () => {
         }}
       />
 
-      {/* ➕ Đăng bài (Floating Button) */}
       <Tabs.Screen
         name="post/index"
         options={{
@@ -78,33 +81,22 @@ const TabLayout = () => {
         }}
       />
 
-      {/* 💬 Tin nhắn */}
       <Tabs.Screen
         name="conversation/index"
         options={{
           header: () => <MainHeader />,
           title: "Tin nhắn",
-          tabBarIcon: ({ color }) => (
-            <View>
-              <MessageSquare color={color} size={24} />
-            </View>
-          ),
+          tabBarIcon: ({ color }) => <MessageSquare color={color} size={24} />,
         }}
       />
 
-      {/* 👤 Cá nhân */}
       <Tabs.Screen
         name="profile/index"
         options={{
           header: () => <MainHeader />,
-          title: "",
+          title: "Cá nhân",
           tabBarIcon: ({ color, focused }) => (
-            <View
-              style={[
-                styles.avatarContainer,
-                focused && { borderColor: color },
-              ]}
-            >
+            <View style={[styles.avatarContainer, focused && { borderColor: color }]}>
               <Image
                 source={avatar ? { uri: avatar } : Avatars.cat}
                 style={styles.avatarIcon}
@@ -117,8 +109,6 @@ const TabLayout = () => {
   );
 };
 
-export default TabLayout;
-
 const styles = StyleSheet.create({
   floatingButton: {
     position: "absolute",
@@ -130,24 +120,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 8,
-    shadowColor: Colors.blue[900],
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   avatarContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 999,
+    width: 32, // Thu nhỏ lại một chút cho cân đối tab bar
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
-    backgroundColor: "#f0f0f0", // Hiện màu xám nhẹ khi đang load
+    backgroundColor: "#f0f0f0",
   },
-  avatarIcon: {
-    width: "100%",
-    height: "100%",
-  },
+  avatarIcon: { width: "100%", height: "100%" },
 });
+
+export default TabLayout;
