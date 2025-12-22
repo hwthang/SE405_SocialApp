@@ -1,12 +1,11 @@
 // import { Colors } from "@/constant/Color";
 import { Api } from "@/helper/Api";
 import { AuthHelper } from "@/helper/AuthHelper";
-import { Avatars } from "@/public/img/avatar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import { WaypointsIcon } from "lucide-react-native";
+import { ScanBarcode, WaypointsIcon } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import CustomHeader from "./custom/CustomHeader";
 
 const MainHeader = () => {
@@ -75,12 +74,13 @@ const MainHeader = () => {
               justifyContent: "center",
               padding: 2,
             }}
-            onPress={() => router.replace("/(main)/option")}
+            onPress={() => router.push("/(main)/qr")}
           >
-            <Image
+            {/* <Image
               source={avatarUrl?.url ? { uri: avatarUrl.url } : Avatars.cat}
               style={{ height: "100%", aspectRatio: 1, borderRadius: 1000 }}
-            />
+            /> */}
+            <ScanBarcode color={'white'}/>
           </TouchableOpacity>
         </View>
       </View>

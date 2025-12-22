@@ -24,11 +24,11 @@ const OptionScreen = () => {
       }
     );
 
-    const result = await response.json(); 
+    const result = await response.json();
 
-    console.log(result.data)
+    console.log(result.data);
 
-    setQr(result.data)
+    setQr(result.data);
   };
 
   useEffect(() => {
@@ -44,7 +44,7 @@ const OptionScreen = () => {
           position: "relative",
         }}
       >
-        <MyQr/>
+        <MyQr />
         <Link
           href={"/(main)/qr"}
           style={{ position: "absolute", top: 0, right: 0 }}
@@ -69,7 +69,7 @@ const OptionScreen = () => {
 
         <TouchableOpacity
           style={styles.button}
-          onPress={AuthHelper.getInstance().logOut}
+          onPress={() => AuthHelper.getInstance().logOut()}
         >
           <View style={styles.row}>
             <View style={styles.left}>

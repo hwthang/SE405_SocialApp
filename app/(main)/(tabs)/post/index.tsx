@@ -34,7 +34,7 @@ interface MediaItem {
   type: MediaType;
 }
 
-type Scope = "public" | "friends" | "private";
+type Scope = "public" | "friends" | "only_me";
 
 // ---- Media preview item ----
 const MediaPreviewItem = ({
@@ -193,7 +193,7 @@ const CreatePostScreen = () => {
   const scopeLabel = {
     public: "Công khai",
     friends: "Bạn bè",
-    private: "Chỉ mình tôi",
+    only_me: "Chỉ mình tôi",
   }[scope];
 
   return (
@@ -207,7 +207,7 @@ const CreatePostScreen = () => {
           {[
             { key: "public", label: "Công khai", Icon: Globe },
             { key: "friends", label: "Bạn bè", Icon: Users },
-            { key: "private", label: "Riêng tư", Icon: Lock },
+            { key: "only_me", label: "Riêng tư", Icon: Lock },
           ].map(({ key, label, Icon }) => (
             <TouchableOpacity
               key={key}

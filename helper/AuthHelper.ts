@@ -4,7 +4,7 @@ import { router } from "expo-router";
 export class AuthHelper {
   private static instance: AuthHelper;
 
-  private constructor() {}
+  private constructor() { }
 
   private _isAdmin: boolean = false;
   private _accessToken: string | null = null;
@@ -12,6 +12,8 @@ export class AuthHelper {
 
   private static ACCESS_TOKEN_KEY = "ACCESS_TOKEN";
   private static REFRESH_TOKEN_KEY = "REFRESH_TOKEN"; // Key lưu trữ
+  private static USER = "USER";
+
 
   public static getInstance(): AuthHelper {
     if (!AuthHelper.instance) {
@@ -31,11 +33,9 @@ export class AuthHelper {
 
   public async logOut() {
     // Xóa tất cả token khi logout
-    await Promise.all([
-      AsyncStorage.removeItem(AuthHelper.ACCESS_TOKEN_KEY),
-      AsyncStorage.removeItem(AuthHelper.REFRESH_TOKEN_KEY),
-      AsyncStorage.removeItem('USER')
-    ]);
+
+    await AsyncStorage.clear()
+
     this._accessToken = null;
     this._refreshToken = null;
     router.replace('/(auth)/login');
@@ -48,6 +48,15 @@ export class AuthHelper {
       await AsyncStorage.setItem(AuthHelper.ACCESS_TOKEN_KEY, token);
     } else {
       await AsyncStorage.removeItem(AuthHelper.ACCESS_TOKEN_KEY);
+    }
+  }
+
+  public async setUser(token: string | null) {
+    this._accessToken = token;
+    if (token) {
+      await AsyncStorage.setItem(AuthHelper.USER, token);
+    } else {
+      await AsyncStorage.removeItem(AuthHelper.USER);
     }
   }
 
@@ -82,6 +91,19 @@ export class AuthHelper {
       if (!userData) return null;
       const user = JSON.parse(userData);
       return user.id;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ---- User Info ----
+  public async getUserAvatar(): Promise<string | null> {
+    try {
+      const userData = await AsyncStorage.getItem('USER');
+      if (!userData) return null;
+      const user = JSON.parse(userData);
+      console.log(user)
+      return user.avatarUrl;
     } catch (e) {
       return null;
     }

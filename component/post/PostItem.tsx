@@ -1,4 +1,3 @@
-import { Colors } from "@/constant/Colors";
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import PostActionBar from "./PostActionBar";
@@ -14,17 +13,18 @@ const PostItem = ({ post }: PostItemProps) => {
   return (
     <View style={styles.wrapper}>
       {/* Header */}
-      <View style={styles.section}>
-        <PostHeader author={post.author} createdAt={post.createdAt} privacy={post.privacy}/>
-      </View>
+
+      <PostHeader
+        author={post.author}
+        createdAt={post.createdAt}
+        privacy={post.privacy}
+      />
 
       {/* Content */}
       <View style={styles.content}>
         {post.text ? <PostCaption text={post.text} /> : null}
 
-        {post.media?.length > 0 ? (
-          <PostMedia media={post.media} />
-        ) : null}
+        {post.media?.length > 0 ? <PostMedia media={post.media} /> : null}
       </View>
 
       {/* Action bar */}
@@ -39,10 +39,10 @@ export default PostItem;
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: 20,
+    marginBottom: 4,
     backgroundColor: "#FFF",
-    borderWidth:1,
-    borderColor:Colors.gray[100]
+    
+    paddingTop: 10,
   },
   section: {
     paddingHorizontal: 10,

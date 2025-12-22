@@ -12,6 +12,7 @@ import {
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   TextInput,
@@ -29,14 +30,16 @@ const CustomButton = ({
   title,
   onPress,
   disabled = false,
+  loading = false,
 }: {
   title: string;
   onPress: () => void;
   disabled?: boolean;
+  loading?: boolean;
 }) => (
   <TouchableOpacity
     onPress={onPress}
-    disabled={disabled}
+    disabled={disabled || loading}
     activeOpacity={0.85}
     style={styles.buttonWrapper}
   >
@@ -44,7 +47,11 @@ const CustomButton = ({
       colors={disabled ? ["#9CA3AF", "#9CA3AF"] : ["#2563EB", "#1D4ED8"]}
       style={styles.button}
     >
-      <Text style={styles.buttonText}>{title}</Text>
+      {loading ? (
+        <ActivityIndicator color="#FFF" />
+      ) : (
+        <Text style={styles.buttonText}>{title}</Text>
+      )}
     </LinearGradient>
   </TouchableOpacity>
 );
@@ -127,17 +134,17 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Logic: Nút bị disable nếu email hoặc password rỗng (sau khi trim khoảng trắng)
+  const isFormInvalid = email.trim().length === 0 || password.trim().length === 0;
+
   const validate = () => {
     const e: Record<string, string> = {};
-
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       e.email = "Email không hợp lệ";
     }
-
     if (password.length < 6) {
       e.password = "Mật khẩu tối thiểu 6 ký tự";
     }
-
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -166,13 +173,14 @@ export default function LoginScreen() {
         return;
       }
 
-      console.log(result.data.accessToken)
-      await AuthHelper.getInstance().setAccessToken(result.data.accessToken);
-       await AuthHelper.getInstance().setRefreshToken(result.data.refreshToken);
+      // Lưu trữ cặp Token
+      const auth = AuthHelper.getInstance();
+      await auth.setAccessToken(result.data.accessToken);
+      await auth.setRefreshToken(result.data.refreshToken);
 
       Toast.show({
         type: "success",
-        text1: "Đăng nhập thành công",
+        text1: "Thành công",
         text2: "Chào mừng bạn quay trở lại 🎉",
       });
 
@@ -190,7 +198,6 @@ export default function LoginScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Gradient background – render 1 lần */}
       <LinearGradient
         colors={["#1D4ED8", "#1E3A8A"]}
         style={StyleSheet.absoluteFill}
@@ -215,30 +222,46 @@ export default function LoginScreen() {
               label="Email"
               icon={Mail}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text: string) => {
+                setEmail(text);
+                if (errors.email) setErrors({ ...errors, email: "" });
+              }}
               keyboardType="email-address"
               errorMessage={errors.email}
             />
 
-            <CustomInput
-              label="Mật khẩu"
-              icon={Lock}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              isPassword
-              errorMessage={errors.password}
-            />
+            <View>
+              <CustomInput
+                label="Mật khẩu"
+                icon={Lock}
+                value={password}
+                onChangeText={(text: string) => {
+                  setPassword(text);
+                  if (errors.password) setErrors({ ...errors, password: "" });
+                }}
+                secureTextEntry
+                isPassword
+                errorMessage={errors.password}
+              />
+              
+              <TouchableOpacity 
+                onPress={() => router.push('/(auth)/recovery')}
+                style={styles.forgotPasswordWrapper}
+              >
+                <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
+              </TouchableOpacity>
+            </View>
 
             <CustomButton
               title={loading ? "ĐANG XỬ LÝ..." : "ĐĂNG NHẬP"}
               onPress={handleLogin}
-              disabled={loading}
+              loading={loading}
+              disabled={isFormInvalid} // Disable nếu form trống
             />
 
             <TouchableOpacity
               onPress={() => router.push("/(auth)/register")}
-              style={{ marginTop: 16 }}
+              style={{ marginTop: 20 }}
             >
               <Text style={styles.registerText}>
                 Chưa có tài khoản?{" "}
@@ -252,13 +275,9 @@ export default function LoginScreen() {
   );
 }
 
-/* =======================================================
-   STYLES
-======================================================= */
-
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingTop: 120,
+    paddingTop: 100,
     paddingBottom: 60,
     alignItems: "center",
   },
@@ -285,10 +304,15 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 24,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
   },
-  inputContainer: { marginBottom: 20 },
+  inputContainer: { marginBottom: 18 },
   inputLabel: {
     fontSize: 15,
     fontWeight: "600",
@@ -302,10 +326,10 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     borderRadius: 12,
     paddingHorizontal: 16,
-    height: 55,
+    height: 56,
     backgroundColor: "#F9FAFB",
   },
-  inputFocused: { borderColor: "#3B82F6" },
+  inputFocused: { borderColor: "#3B82F6", backgroundColor: "#FFF" },
   inputError: { borderColor: "#DC2626" },
   textInput: {
     flex: 1,
@@ -315,14 +339,26 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#DC2626",
-    fontSize: 13,
-    marginTop: 6,
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  forgotPasswordWrapper: {
+    alignSelf: "flex-end",
+    marginTop: -10,
+    marginBottom: 20,
+    padding: 4,
+  },
+  forgotPasswordText: {
+    color: "#3B82F6",
+    fontSize: 14,
+    fontWeight: "600",
   },
   buttonWrapper: {
-    height: 55,
+    height: 56,
     borderRadius: 12,
     overflow: "hidden",
-    marginTop: 10,
+    marginTop: 8,
   },
   button: {
     flex: 1,
@@ -330,13 +366,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonText: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#FFF",
-    fontWeight: "700",
+    fontWeight: "bold",
+    letterSpacing: 0.5,
   },
   registerText: {
     textAlign: "center",
     color: "#6B7280",
+    fontSize: 14,
   },
   registerBold: {
     color: "#3B82F6",

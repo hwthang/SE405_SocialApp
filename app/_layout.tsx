@@ -1,4 +1,4 @@
-import { LoginService } from "@/service/LoginService"; // Import Service mới
+import { LoginService } from "@/service/LoginService";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -12,11 +12,53 @@ import {
   Text,
   View,
 } from "react-native";
-import Toast from "react-native-toast-message";
+import Toast, {
+  BaseToastProps,
+  ErrorToast,
+  InfoToast,
+  SuccessToast,
+} from "react-native-toast-message";
 
 const { height } = Dimensions.get("window");
 SplashScreen.preventAutoHideAsync();
 
+/* =======================================================
+    TOAST CONFIGURATION
+   ======================================================= */
+const toastConfig = {
+  success: (props: BaseToastProps) => (
+    <SuccessToast
+      {...props}
+      style={{ borderLeftColor: "#4CAF50", height: 80, width: "94%" }}
+      contentContainerStyle={{ paddingHorizontal: 15 }}
+      text1Style={{ fontSize: 17, fontWeight: "700", color: "#1a1a1a" }}
+      text2Style={{ fontSize: 15, color: "#444" }}
+      text2NumberOfLines={2}
+    />
+  ),
+  info: (props: BaseToastProps) => (
+    <InfoToast
+      {...props}
+      style={{ borderLeftColor: "#007AFF", height: 80, width: "94%" }}
+      contentContainerStyle={{ paddingHorizontal: 15 }}
+      text1Style={{ fontSize: 17, fontWeight: "700" }}
+      text2Style={{ fontSize: 15 }}
+      text2NumberOfLines={2}
+    />
+  ),
+  error: (props: BaseToastProps) => (
+    <ErrorToast
+      {...props}
+      style={{ borderLeftColor: "#FF3B30", height: 80, width: "94%" }}
+      text1Style={{ fontSize: 17, fontWeight: "700" }}
+      text2Style={{ fontSize: 15 }}
+    />
+  ),
+};
+
+/* =======================================================
+    ROOT LAYOUT COMPONENT
+   ======================================================= */
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
   const router = useRouter();
@@ -26,7 +68,7 @@ export default function RootLayout() {
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Animation nhịp tim
+    // Hiệu ứng nhịp tim logo
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(scaleAnim, {
@@ -47,12 +89,13 @@ export default function RootLayout() {
       try {
         const loginService = LoginService.getInstance();
 
-        // Thực hiện check token thực tế từ Server
+        // 1. Kiểm tra Token thực tế
         const isLoggedIn = await loginService.checkAndRefreshToken();
 
-        // Đảm bảo splash hiện ít nhất 2s cho đẹp
-        await new Promise((resolve) => setTimeout(resolve, 4000));
+        // 2. Chờ để hiển thị thương hiệu
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
+        // 3. Điều hướng ngầm
         if (isLoggedIn) {
           router.replace("/(main)/(tabs)/home");
         } else {
@@ -63,17 +106,17 @@ export default function RootLayout() {
       } catch (e) {
         router.replace("/(auth)/login");
       } finally {
-        // Chạy hiệu ứng trượt lên khi mọi thứ xong xuôi
+        // 4. Chạy hiệu ứng trượt lên và mờ dần
         Animated.parallel([
           Animated.timing(slideAnim, {
             toValue: -height,
-            duration: 600,
+            duration: 800,
             easing: Easing.out(Easing.exp),
             useNativeDriver: true,
           }),
           Animated.timing(fadeAnim, {
             toValue: 0,
-            duration: 600,
+            duration: 800,
             useNativeDriver: true,
           }),
         ]).start(() => setAppIsReady(true));
@@ -91,6 +134,7 @@ export default function RootLayout() {
         <Stack.Screen name="(main)" />
       </Stack>
 
+      {/* Splash Screen Layer */}
       {!appIsReady && (
         <Animated.View
           style={[
@@ -109,7 +153,13 @@ export default function RootLayout() {
         </Animated.View>
       )}
 
-      <Toast position="top" topOffset={50} />
+      {/* Toast Layer - Đã thêm config trở lại */}
+      <Toast 
+        config={toastConfig} 
+        position="top" 
+        topOffset={50} 
+        visibilityTime={4000}
+      />
     </View>
   );
 }
@@ -127,5 +177,6 @@ const styles = StyleSheet.create({
     color: "#BFDBFE",
     fontSize: 12,
     letterSpacing: 3,
+    fontWeight: "600",
   },
 });

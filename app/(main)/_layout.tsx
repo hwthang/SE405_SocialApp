@@ -16,6 +16,7 @@ const MainLayout = () => {
     const handleGlobalNotify = async (data: any) => {
       const { type, payload } = data;
       console.log(`[Socket Notification] ${type}`);
+      console.log(payload)
 
       // --- TRƯỜNG HỢP: TIN NHẮN MỚI ---
       if (type === "NEW_MESSAGE") {
@@ -103,6 +104,7 @@ const MainLayout = () => {
       <Stack.Screen name="qr/index" options={{ header: () => <BackHeader /> }} />
       <Stack.Screen name="postDetail/[id]" options={{ header: () => <BackHeader /> }} />
       <Stack.Screen name="conversationDetail/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="profileEdit/index" options={{ header: () => <BackHeader /> }}  />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );

@@ -35,6 +35,8 @@ export class LoginService {
         // Cập nhật cặp token mới vào Storage
         await this.auth.setAccessToken(result.data.accessToken);
         await this.auth.setRefreshToken(result.data.refreshToken);
+        const user = JSON.stringify(result.data.user)
+        await this.auth.setUser(user);
         return true;
       }
 

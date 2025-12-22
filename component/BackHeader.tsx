@@ -4,7 +4,7 @@ import React from "react";
 import { TouchableOpacity } from "react-native";
 import CustomHeader from "./custom/CustomHeader";
 
-const BackHeader = ({onBack = () => router.replace("/(main)/(tabs)/home")}) => {
+const BackHeader = ({ onBack = () => router.back() }) => {
   return (
     <CustomHeader>
       <TouchableOpacity onPress={onBack}>

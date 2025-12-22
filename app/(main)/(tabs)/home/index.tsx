@@ -50,11 +50,10 @@ const HomeScreen = () => {
     <View style={styles.container}>
       <FlatList
         data={postItems}
+        style={{backgroundColor:'#f0f0f0ff'}}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <PostItem post={item} />}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
-
         /** 🔽 PULL TO REFRESH */
         refreshing={loading}
         onRefresh={()=>fetchPostItems()}
