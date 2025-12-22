@@ -119,6 +119,7 @@ const MainLayout = () => {
         name="qr/index"
         options={{ header: () => <BackHeader /> }}
       />
+      <Stack.Screen name="chatbot/index" options={{ headerShown: false }} />
       <Stack.Screen
         name="postDetail/[id]"
         options={{ header: () => <BackHeader /> }}
