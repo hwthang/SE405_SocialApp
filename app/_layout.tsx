@@ -1,73 +1,131 @@
-import { Stack } from "expo-router";
-import React from "react";
-import Toast, {
-  BaseToastProps,
-  ErrorToast,
-  InfoToast,
-  SuccessToast
-} from "react-native-toast-message";
+import { LoginService } from "@/service/LoginService"; // Import Service mới
+import { LinearGradient } from "expo-linear-gradient";
+import { Stack, useRouter } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { Waypoints as WaypointsIcon } from "lucide-react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Dimensions,
+  Easing,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import Toast from "react-native-toast-message";
 
-const toastConfig = {
-  // Cấu hình cho thông báo thành công hoặc kết bạn
-  success: (props: BaseToastProps) => (
-    <SuccessToast
-      {...props}
-      style={{ borderLeftColor: '#4CAF50', height: 80, width: '94%' }}
-      contentContainerStyle={{ paddingHorizontal: 15 }}
-      text1Style={{
-        fontSize: 17, // Tiêu đề lớn hơn
-        fontWeight: "700",
-        color: '#1a1a1a'
-      }}
-      text2Style={{
-        fontSize: 15, // Nội dung lớn hơn
-        color: '#444'
-      }}
-      text2NumberOfLines={2} // Cho phép hiển thị 2 dòng nội dung
-    />
-  ),
-
-  // Cấu hình cho tin nhắn mới hoặc thông báo chung
-  info: (props: BaseToastProps) => (
-    <InfoToast
-      {...props}
-      style={{ borderLeftColor: '#007AFF', height: 80, width: '94%' }}
-      contentContainerStyle={{ paddingHorizontal: 15 }}
-      text1Style={{
-        fontSize: 17,
-        fontWeight: "700",
-      }}
-      text2Style={{
-        fontSize: 15,
-      }}
-      text2NumberOfLines={2}
-    />
-  ),
-
-  error: (props: BaseToastProps) => (
-    <ErrorToast
-      {...props}
-      style={{ borderLeftColor: '#FF3B30', height: 80, width: '94%' }}
-      text1Style={{ fontSize: 17, fontWeight: "700" }}
-      text2Style={{ fontSize: 15 }}
-    />
-  ),
-};
+const { height } = Dimensions.get("window");
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [appIsReady, setAppIsReady] = useState(false);
+  const router = useRouter();
+
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animation nhịp tim
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+
+    async function prepare() {
+      try {
+        const loginService = LoginService.getInstance();
+
+        // Thực hiện check token thực tế từ Server
+        const isLoggedIn = await loginService.checkAndRefreshToken();
+
+        // Đảm bảo splash hiện ít nhất 2s cho đẹp
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+
+        if (isLoggedIn) {
+          router.replace("/(main)/(tabs)/home");
+        } else {
+          router.replace("/(auth)/login");
+        }
+
+        await SplashScreen.hideAsync();
+      } catch (e) {
+        router.replace("/(auth)/login");
+      } finally {
+        // Chạy hiệu ứng trượt lên khi mọi thứ xong xuôi
+        Animated.parallel([
+          Animated.timing(slideAnim, {
+            toValue: -height,
+            duration: 600,
+            easing: Easing.out(Easing.exp),
+            useNativeDriver: true,
+          }),
+          Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]).start(() => setAppIsReady(true));
+      }
+    }
+
+    prepare();
+    return () => pulse.stop();
+  }, []);
+
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: "#1E3A8A" }}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(main)" />
       </Stack>
 
-      <Toast
-        config={toastConfig}
-        position="top"
-        topOffset={50}
-        visibilityTime={4000} // Hiện lâu hơn một chút (4 giây)
-      />
-    </>
+      {!appIsReady && (
+        <Animated.View
+          style={[
+            styles.splashOverlay,
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+          ]}
+        >
+          <LinearGradient
+            colors={["#1D4ED8", "#1E3A8A"]}
+            style={StyleSheet.absoluteFill}
+          />
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <WaypointsIcon size={100} color="#FFFFFF" strokeWidth={1.5} />
+          </Animated.View>
+          <Text style={styles.loadingText}>WAYPOINTS SOCIAL</Text>
+        </Animated.View>
+      )}
+
+      <Toast position="top" topOffset={50} />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  splashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  loadingText: {
+    position: "absolute",
+    bottom: 80,
+    color: "#BFDBFE",
+    fontSize: 12,
+    letterSpacing: 3,
+  },
+});

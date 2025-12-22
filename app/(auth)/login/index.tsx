@@ -168,6 +168,7 @@ export default function LoginScreen() {
 
       console.log(result.data.accessToken)
       await AuthHelper.getInstance().setAccessToken(result.data.accessToken);
+       await AuthHelper.getInstance().setRefreshToken(result.data.refreshToken);
 
       Toast.show({
         type: "success",
