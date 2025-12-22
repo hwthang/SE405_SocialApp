@@ -3,300 +3,255 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import {
   ChevronLeft,
-  KeyRound,
+  Eye,
+  EyeOff,
   Lock,
   Mail,
-  Waypoints as WaypointsIcon,
+  Waypoints as WaypointsIcon
 } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Animated,
   Dimensions,
+  Keyboard,
+  Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Toast from "react-native-toast-message";
 
 const { width } = Dimensions.get("window");
+const OTP_LENGTH = 6;
 
 /* =======================================================
-   RECOVERY PASSWORD SCREEN
+   RE-USE COMPONENTS
 ======================================================= */
-const RecoveryPassword = () => {
-  const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
-  const [loading, setLoading] = useState(false);
+const CustomButton = ({ title, onPress, disabled, loading }: any) => (
+  <TouchableOpacity
+    onPress={onPress}
+    disabled={disabled || loading}
+    activeOpacity={0.85}
+    style={styles.buttonWrapper}
+  >
+    <LinearGradient
+      colors={disabled ? ["#9CA3AF", "#9CA3AF"] : ["#2563EB", "#1D4ED8"]}
+      style={styles.button}
+    >
+      {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>{title}</Text>}
+    </LinearGradient>
+  </TouchableOpacity>
+);
 
+const RecoveryPassword = () => {
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  
   // Form Data
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // UI States
+  const [secureNewPass, setSecureNewPass] = useState(true);
+  const [secureConfirmPass, setSecureConfirmPass] = useState(true);
+
+  // Refs & Animation
+  const otpInputRef = useRef<TextInput>(null);
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const onKeyboardShow = () => {
+      Animated.timing(translateY, {
+        toValue: -100, // Đẩy lên cao hơn một chút vì form bước 2 dài hơn
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    const onKeyboardHide = () => {
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
+    const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const api = Api.getInstance();
 
-  // STEP 1: Gọi API check email và gửi OTP
   const handleCheckEmail = async () => {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      Toast.show({ type: "error", text1: "Lỗi", text2: "Email không hợp lệ" });
-      return;
-    }
-
+    if (!email.includes("@")) return Toast.show({ type: "error", text1: "Email không hợp lệ" });
+    setLoading(true);
     try {
-      setLoading(true);
       const res = await fetch(`${api.baseUrl}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-
-      if (res.ok) {
-        Toast.show({
-          type: "success",
-          text1: "Thành công",
-          text2: "Đã gửi mã OTP",
-        });
-        setStep(2);
-      } else {
-        const result = await res.json();
-        Toast.show({
-          type: "error",
-          text1: "Lỗi",
-          text2: result.message || "Email không tồn tại",
-        });
+      if (res.ok) { 
+        setStep(2); 
+        Toast.show({ type: "success", text1: "Đã gửi OTP" }); 
       }
-    } catch {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Không thể kết nối máy chủ",
-      });
-    } finally {
-      setLoading(false);
-    }
+      else Toast.show({ type: "error", text1: "Lỗi", text2: "Email không tồn tại" });
+    } finally { setLoading(false); }
   };
 
-  // STEP 2 & 3: Gọi API khôi phục mật khẩu (Email, OTP, Pass)
-  const handleRecovery = async () => {
-    if (otp.length !== 6) {
-      Toast.show({ type: "error", text1: "Lỗi", text2: "OTP phải gồm 6 số" });
-      return;
-    }
-    if (newPassword.length < 6) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Mật khẩu tối thiểu 6 ký tự",
-      });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Mật khẩu xác nhận không khớp",
-      });
-      return;
-    }
-
+  const handleReset = async () => {
+    if (otp.length < 6) return Toast.show({ type: "error", text1: "Vui lòng nhập đủ OTP" });
+    if (newPassword !== confirmPassword) return Toast.show({ type: "error", text1: "Mật khẩu không khớp" });
+    
+    setLoading(true);
     try {
-      setLoading(true);
       const res = await fetch(`${api.baseUrl}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp, newPassword }),
+        body: JSON.stringify({ email, code: otp, newPassword }),
       });
-
+      const json = await res.json()
+      console.log(json)
       if (res.ok) {
-        Toast.show({
-          type: "success",
-          text1: "Thành công",
-          text2: "Mật khẩu đã được đổi",
-        });
+        Toast.show({ type: "success", text1: "Thành công", text2: "Mật khẩu đã được cập nhật" });
         router.replace("/(auth)/login");
-      } else {
-        const result = await res.json();
-        Toast.show({
-          type: "error",
-          text1: "Lỗi",
-          text2: result.message || "OTP sai hoặc hết hạn",
-        });
-      }
-    } catch {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Lỗi thực hiện khôi phục",
-      });
-    } finally {
-      setLoading(false);
-    }
+      } else Toast.show({ type: "error", text1: "Lỗi", text2: "Mã OTP sai hoặc hết hạn" });
+    } finally { setLoading(false); }
   };
 
   return (
     <View style={{ flex: 1 }}>
-      <LinearGradient
-        colors={["#1D4ED8", "#1E3A8A"]}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={["#1D4ED8", "#1E3A8A"]} style={StyleSheet.absoluteFill} />
 
-      <KeyboardAwareScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.container}>
-          {/* Back Button */}
-          <TouchableOpacity
-            onPress={() => (step > 1 ? setStep(step - 1) : router.back())}
-            style={styles.backBtn}
-          >
-            <ChevronLeft color="#FFF" size={28} />
-          </TouchableOpacity>
+      <Animated.View style={[styles.container, { transform: [{ translateY }] }]}>
+        <TouchableOpacity onPress={() => (step > 1 ? setStep(1) : router.back())} style={styles.backBtn}>
+          <ChevronLeft color="#FFF" size={28} />
+        </TouchableOpacity>
 
-          <View style={styles.header}>
-            <WaypointsIcon size={60} color="#FFF" />
-            <Text style={styles.headerText}>Khôi phục mật khẩu</Text>
-            <Text style={styles.subHeader}>
-              Bước {step}/3:{" "}
-              {step === 1
-                ? "Xác thực Email"
-                : step === 2
-                ? "Nhập mã OTP"
-                : "Đặt mật khẩu mới"}
-            </Text>
-          </View>
-
-          <View style={styles.card}>
-            {/* SECTION 1: NHẬP EMAIL */}
-            {step === 1 && (
-              <View>
-                <Text style={styles.inputLabel}>Email của bạn</Text>
-                <View style={styles.inputWrapper}>
-                  <Mail size={20} color="#6B7280" />
-                  <TextInput
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholder="example@gmail.com"
-                    style={styles.textInput}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-                <TouchableOpacity
-                  onPress={handleCheckEmail}
-                  disabled={loading}
-                  style={styles.mainBtn}
-                >
-                  <Text style={styles.btnText}>
-                    {loading ? "ĐANG GỬI..." : "GỬI MÃ OTP"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* SECTION 2: NHẬP OTP */}
-            {step === 2 && (
-              <View>
-                <Text style={styles.inputLabel}>Mã OTP (6 chữ số)</Text>
-                <View style={styles.inputWrapper}>
-                  <KeyRound size={20} color="#6B7280" />
-                  <TextInput
-                    value={otp}
-                    onChangeText={setOtp}
-                    placeholder="123456"
-                    style={styles.textInput}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
-                </View>
-                <TouchableOpacity
-                  onPress={() => setStep(3)}
-                  style={styles.mainBtn}
-                >
-                  <Text style={styles.btnText}>TIẾP TỤC</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* SECTION 3: NHẬP PASSWORD MỚI */}
-            {step === 3 && (
-              <View>
-                <Text style={styles.inputLabel}>Mật khẩu mới</Text>
-                <View style={styles.inputWrapper}>
-                  <Lock size={20} color="#6B7280" />
-                  <TextInput
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                    placeholder="Tối thiểu 6 ký tự"
-                    secureTextEntry
-                    style={styles.textInput}
-                  />
-                </View>
-
-                <Text style={[styles.inputLabel, { marginTop: 15 }]}>
-                  Xác nhận mật khẩu
-                </Text>
-                <View style={styles.inputWrapper}>
-                  <Lock size={20} color="#6B7280" />
-                  <TextInput
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    placeholder="Nhập lại mật khẩu"
-                    secureTextEntry
-                    style={styles.textInput}
-                  />
-                </View>
-
-                <TouchableOpacity
-                  onPress={handleRecovery}
-                  disabled={loading}
-                  style={styles.mainBtn}
-                >
-                  <Text style={styles.btnText}>
-                    {loading ? "ĐANG XỬ LÝ..." : "ĐỔI MẬT KHẨU"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+        <View style={styles.header}>
+          <WaypointsIcon size={60} color="#FFF" />
+          <Text style={styles.headerText}>Khôi phục mật khẩu</Text>
+          <Text style={styles.subHeader}>
+            {step === 1 ? "Nhập email xác thực" : "Thiết lập mật khẩu mới"}
+          </Text>
         </View>
-      </KeyboardAwareScrollView>
+
+        <View style={styles.card}>
+          {step === 1 ? (
+            <View>
+              <Text style={styles.inputLabel}>Email khôi phục</Text>
+              <View style={styles.inputWrapper}>
+                <Mail size={20} color="#6B7280" />
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="email@example.com"
+                  style={styles.textInput}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+              <CustomButton title="TIẾP TỤC" onPress={handleCheckEmail} loading={loading} disabled={!email} />
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.inputLabel}>Mã xác thực OTP</Text>
+              <Pressable style={styles.otpContainer} onPress={() => otpInputRef.current?.focus()}>
+                {Array(OTP_LENGTH).fill(0).map((_, i) => (
+                  <View key={i} style={[styles.otpBox, otp.length === i && styles.otpBoxFocused, otp[i] && styles.otpBoxFilled]}>
+                    <Text style={styles.otpText}>{otp[i] || ""}</Text>
+                  </View>
+                ))}
+              </Pressable>
+              
+              <TextInput
+                ref={otpInputRef}
+                value={otp}
+                onChangeText={setOtp}
+                maxLength={OTP_LENGTH}
+                keyboardType="number-pad"
+                style={styles.hiddenInput}
+              />
+
+              <Text style={[styles.inputLabel, { marginTop: 15 }]}>Mật khẩu mới</Text>
+              <View style={styles.inputWrapper}>
+                <Lock size={20} color="#6B7280" />
+                <TextInput
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="Tối thiểu 6 ký tự"
+                  secureTextEntry={secureNewPass}
+                  style={styles.textInput}
+                />
+                <TouchableOpacity onPress={() => setSecureNewPass(!secureNewPass)}>
+                  {secureNewPass ? <Eye size={20} color="#6B7280" /> : <EyeOff size={20} color="#6B7280" />}
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[styles.inputLabel, { marginTop: 15 }]}>Xác nhận mật khẩu</Text>
+              <View style={styles.inputWrapper}>
+                <Lock size={20} color="#6B7280" />
+                <TextInput
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Nhập lại mật khẩu"
+                  secureTextEntry={secureConfirmPass}
+                  style={styles.textInput}
+                />
+                <TouchableOpacity onPress={() => setSecureConfirmPass(!secureConfirmPass)}>
+                  {secureConfirmPass ? <Eye size={20} color="#6B7280" /> : <EyeOff size={20} color="#6B7280" />}
+                </TouchableOpacity>
+              </View>
+
+              <CustomButton
+                title="HOÀN TẤT"
+                onPress={handleReset}
+                loading={loading}
+                disabled={otp.length < 6 || !newPassword || !confirmPassword}
+              />
+            </View>
+          )}
+        </View>
+      </Animated.View>
     </View>
   );
 };
 
 export default RecoveryPassword;
 
-/* =======================================================
-   STYLES (Đồng bộ với Login)
-======================================================= */
 const styles = StyleSheet.create({
-  scrollContent: { paddingTop: 80, paddingBottom: 40, alignItems: "center" },
-  container: { width: "100%", maxWidth: 420, paddingHorizontal: 16 },
-  backBtn: { marginBottom: 20, alignSelf: "flex-start" },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 16 },
+  backBtn: { position: "absolute", top: 60, left: 16 },
   header: { alignItems: "center", marginBottom: 30 },
-  headerText: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginTop: 12,
-  },
+  headerText: { fontSize: 26, fontWeight: "bold", color: "#FFF", marginTop: 12 },
   subHeader: { fontSize: 15, color: "#BFDBFE", marginTop: 4 },
   card: {
     backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 20,
-    elevation: 5,
+    borderRadius: 20,
+    padding: 24,
+    width: "100%",
+    maxWidth: 400,
+    elevation: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
   },
-  inputLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
-  },
+  inputLabel: { fontSize: 15, fontWeight: "600", color: "#374151", marginBottom: 8 },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -304,17 +259,27 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     borderRadius: 12,
     paddingHorizontal: 16,
-    height: 55,
+    height: 56,
     backgroundColor: "#F9FAFB",
   },
   textInput: { flex: 1, fontSize: 16, paddingLeft: 10, color: "#1F2937" },
-  mainBtn: {
-    height: 55,
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
+  buttonWrapper: { height: 56, borderRadius: 12, overflow: "hidden", marginTop: 24 },
+  button: { flex: 1, justifyContent: "center", alignItems: "center" },
+  buttonText: { fontSize: 16, color: "#FFF", fontWeight: "bold" },
+  
+  otpContainer: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
+  otpBox: {
+    width: (width - 120) / 6,
+    height: 50,
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 25,
+    backgroundColor: "#F9FAFB",
   },
-  btnText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
+  otpBoxFocused: { borderColor: "#2563EB", backgroundColor: "#EFF6FF" },
+  otpBoxFilled: { borderColor: "#2563EB" },
+  otpText: { fontSize: 20, fontWeight: "bold", color: "#1F2937" },
+  hiddenInput: { position: "absolute", width: 1, height: 1, opacity: 0 },
 });
