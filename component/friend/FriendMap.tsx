@@ -104,7 +104,7 @@ export default FriendMap;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  map: { flex: 1 },
+  map: { flex: 1, paddingBottom:20 },
   loading: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 10,

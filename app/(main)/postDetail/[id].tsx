@@ -181,6 +181,31 @@ const PostDetailScreen = () => {
     } catch (e) { console.error(e); }
   };
 
+  const handleDeletePost = async () => {
+    try {
+      const api = Api.getInstance();
+      const token = await AuthHelper.getInstance().getAccessToken();
+      const res = await fetch(`${api.baseUrl}/posts/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        // Sau khi xóa thành công, hiển thị thông báo rồi quay lại trang trước
+        showAlert("success", "Thành công", "Bài viết đã được xóa bỏ.", () => {
+          router.replace('/(main)/(tabs)/home');
+        });
+      } else {
+        throw new Error("Xóa thất bại");
+      }
+    } catch (error) {
+      console.error("Delete Post Error:", error);
+      showAlert("error", "Lỗi", "Không thể xóa bài viết. Vui lòng thử lại sau.");
+    }
+  };
+
   /* ================= RENDER HELPERS ================= */
   const CurrentScope = SCOPE_OPTIONS.find((o) => o.id === editScope) || SCOPE_OPTIONS[0];
 
@@ -237,7 +262,7 @@ const PostDetailScreen = () => {
               <>
                 <TouchableOpacity onPress={() => setIsEditModalVisible(true)} style={styles.headerIconButton}><Edit3 size={22} color="#FFF" /></TouchableOpacity>
                 <TouchableOpacity 
-                  onPress={() => showAlert("warning", "Xóa bài viết?", "Bạn có chắc muốn xóa bài viết này không?", () => {/* Logic xóa */})} 
+                  onPress={() => showAlert("warning", "Xóa bài viết?", "Bạn có chắc muốn xóa bài viết này không?", handleDeletePost)} 
                   style={styles.headerIconButton}
                 >
                   <Trash2 size={22} color="#FFF" />

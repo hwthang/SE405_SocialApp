@@ -58,7 +58,7 @@ class SocketHelper {
    * @param callback Hàm xử lý khi nhận được data
    */
   onNewNotification(callback: (data: any) => void) {
-
+console.log("notification on")
     this.socket?.on("notification:new", callback);
   }
 

@@ -1,6 +1,5 @@
 import FriendInvitationSection from "@/component/friend/FriendInvitationSection";
 import FriendListSection from "@/component/friend/FriendListSection";
-import SocketHelper from "@/helper/SocketHelper";
 import { useLocalSearchParams } from "expo-router";
 import { BellPlus, Users } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
@@ -26,19 +25,6 @@ const FriendScreen = () => {
   }, [params.tab]);
 
   // ================= 1. THIẾT LẬP SOCKET LISTENERS =================
-  useEffect(() => {
-    const handleNewRequest = (data: any) => {
-      if (data.type === "FRIEND_REQUEST_RECEIVED") {
-        // Nếu không ở tab lời mời thì hiện chấm đỏ thông báo
-        if (isActive !== 1) {
-          setHasNewInvite(true);
-        }
-      }
-    };
-
-    SocketHelper.onNewNotification(handleNewRequest);
-    return () => SocketHelper.removeListener("notification:new", handleNewRequest);
-  }, [isActive]);
 
   return (
     <View style={styles.container}>

@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import SocketHelper from "./SocketHelper";
 
 export class AuthHelper {
   private static instance: AuthHelper;
@@ -35,6 +36,7 @@ export class AuthHelper {
     // Xóa tất cả token khi logout
 
     await AsyncStorage.clear()
+    SocketHelper.disconnect()
 
     this._accessToken = null;
     this._refreshToken = null;

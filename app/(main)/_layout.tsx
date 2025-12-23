@@ -1,136 +1,140 @@
 import BackHeader from "@/component/BackHeader";
+import CustomSplashScreen from "@/component/custom/CustomSplashScreen";
 import SocketHelper from "@/helper/SocketHelper";
 import { ConversationService } from "@/service/ConversationService";
 import { FriendService } from "@/service/FriendService";
 import { Stack, usePathname, useRouter } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
 const MainLayout = () => {
   const pathname = usePathname();
   const router = useRouter();
 
-  useEffect(() => {
-    SocketHelper.connect();
+  // --- States quản lý Splash Screen ---
+  const [splashVisible, setSplashVisible] = useState(true); 
+  const [isReady, setIsReady] = useState(false);           
+  const [status, setStatus] = useState("Đang khởi tạo ứng dụng...");
 
+  const pathnameRef = useRef(pathname);
+  const routerRef = useRef(router);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+    routerRef.current = router;
+  }, [pathname, router]);
+
+  useEffect(() => {
+    // 1. Handler xử lý thông báo nhận từ Socket
     const handleGlobalNotify = async (data: any) => {
       const { type, payload } = data;
-      console.log(`[Socket Notification] ${type}`);
-      console.log(payload);
+      const currentPath = pathnameRef.current;
+      const currentRouter = routerRef.current;
 
-      // --- TRƯỜNG HỢP: TIN NHẮN MỚI ---
       if (type === "NEW_MESSAGE") {
         const { conversationId } = payload;
+        if (currentPath.includes(`/conversationDetail/${conversationId}`)) return;
 
-        // Kiểm tra xem có đang ở trong màn hình chat này không
-        if (pathname.includes(`/conversationDetail/${conversationId}`)) return;
+        try {
+          const conversations = await ConversationService.getInstance().fetchAll();
+          const targetConv = conversations.find((c) => c.id === conversationId);
+          if (targetConv) {
+            Toast.show({
+              type: "info",
+              text1: `Tin nhắn từ ${targetConv.name}`,
+              text2: targetConv.type === "DIRECT" 
+                ? targetConv.lastMessage?.split(": ")[1] || targetConv.lastMessage 
+                : targetConv.lastMessage,
+              onPress: () => {
+                currentRouter.push({
+                  pathname: "/(main)/conversationDetail/[id]",
+                  params: { id: conversationId },
+                });
+                Toast.hide();
+              },
+            });
+          }
+        } catch (e) { console.error("Lỗi tin nhắn socket:", e); }
+      }
 
-        // Fetch hội thoại để lấy Tên và Tin nhắn cuối (đã format ở Service)
-        const conversations =
-          await ConversationService.getInstance().fetchAll();
-        const targetConv = conversations.find((c) => c.id === conversationId);
-
-        if (targetConv) {
-          const displayTitle = targetConv.name;
-          // Tách bỏ phần "Bạn: " nếu là chat 1-1 để Toast đẹp hơn
-          const displayBody =
-            targetConv.type === "DIRECT"
-              ? targetConv.lastMessage?.split(": ")[1] || targetConv.lastMessage
-              : targetConv.lastMessage;
-
+      if (type === "FRIEND_REQUEST_RECEIVED") {
+        try {
+          const invitations = await FriendService.getInstance().fetchReceivedRequests();
+          const requester = invitations.find((inv: any) => inv.fromUserId === payload.fromUserId);
           Toast.show({
-            type: "info",
-            text1: `Tin nhắn từ ${displayTitle}`,
-            text2: displayBody,
+            type: "success",
+            text1: `Lời mời kết bạn mới 🤝`,
+            text2: `${requester?.fromUser?.name || "Ai đó"} vừa gửi lời mời kết bạn.`,
             onPress: () => {
-              router.push({
-                pathname: "/(main)/conversationDetail/[id]",
-                params: { id: conversationId },
-              });
+              currentRouter.push({ pathname: "/(main)/(tabs)/friend", params: { tab: "invitation" } });
               Toast.hide();
             },
           });
-        }
-      }
-
-      // --- TRƯỜNG HỢP: NHẬN LỜI MỜI KẾT BẠN ---
-      if (type === "FRIEND_REQUEST_RECEIVED") {
-        // Fetch ngầm để lấy tên người gửi
-        const invitations =
-          await FriendService.getInstance().fetchReceivedRequests();
-        const requester = invitations.find(
-          (inv: any) => inv.fromUserId === payload.fromUserId
-        );
-        const senderName = requester?.fromUser?.name || "Một người dùng lạ";
-
-        Toast.show({
-          type: "success",
-          text1: `Lời mời kết bạn mới 🤝`,
-          text2: `${senderName} vừa gửi cho bạn một lời mời kết bạn. Nhấn để xem ngay!`,
-          onPress: () => {
-            // Điều hướng thẳng tới tab Lời mời (params dùng cho FriendScreen xử lý isActive)
-            router.push({
-              pathname: "/(main)/(tabs)/friend",
-              params: { tab: "invitation" },
-            });
-            Toast.hide();
-          },
-        });
-      }
-
-      // --- TRƯỜNG HỢP: ĐỐI PHƯƠNG CHẤP NHẬN KẾT BẠN ---
-      if (type === "FRIEND_REQUEST_ACCEPTED") {
-        const friends = await FriendService.getInstance().fetchFriends();
-        // friendId trong fetchFriends khớp với toUserId từ socket
-        const newFriend = friends.find(
-          (f: any) => f.friendId === payload.toUserId
-        );
-        const friendName = newFriend?.name || "Một người dùng";
-
-        Toast.show({
-          type: "success",
-          text1: `Kết bạn thành công 🎉`,
-          text2: `Bạn và ${friendName} hiện đã là bạn bè. Hãy gửi lời chào nào!`,
-          onPress: () => {
-            router.push("/(main)/(tabs)/friend");
-            Toast.hide();
-          },
-        });
+        } catch (e) { console.error("Lỗi lời mời socket:", e); }
       }
     };
 
-    SocketHelper.onNewNotification(handleGlobalNotify);
-    return () =>
+    // 2. Logic "Câu giờ" 5 giây và kết nối Socket
+    const setupSocket = async () => {
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      const startTime = Date.now();
+
+      try {
+        setStatus("Đang thiết lập kết nối máy chủ...");
+
+        // Chạy song song: Kết nối socket và chờ đủ 5000ms
+        await Promise.all([
+          SocketHelper.connect(),
+          delay(5000) 
+        ]);
+
+        console.log("Socket connected & 5s delay complete.");
+        SocketHelper.onNewNotification(handleGlobalNotify);
+        setStatus("Sẵn sàng!");
+      } catch (error) {
+        console.error("Socket setup failed:", error);
+        
+        // Nếu lỗi xảy ra nhanh hơn 5s, vẫn chờ cho đủ để tránh giật lag UI
+        const timePassed = Date.now() - startTime;
+        if (timePassed < 5000) {
+          await delay(5000 - timePassed);
+        }
+      } finally {
+        // Kích hoạt hiệu ứng trượt lên của CustomSplashScreen
+        setIsReady(true);
+      }
+    };
+
+    setupSocket();
+
+    return () => {
       SocketHelper.removeListener("notification:new", handleGlobalNotify);
-  }, [pathname]);
+    };
+  }, []);
 
   return (
-    <Stack>
-      {/* <Stack.Screen name="profile/index" options={{ header: () => <BackHeader /> }} /> */}
-      <Stack.Screen
-        name="map/index"
-        options={{ header: () => <BackHeader /> }}
-      />
-      <Stack.Screen
-        name="option/index"
-        options={{ header: () => <BackHeader /> }}
-      />
-      <Stack.Screen
-        name="qr/index"
-        options={{ header: () => <BackHeader /> }}
-      />
-      <Stack.Screen name="chatbot/index" options={{ headerShown: false }} />
-      <Stack.Screen name="postDetail/[id]" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="conversationDetail/[id]"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="profileEdit/index"
-        options={{ header: () => <BackHeader /> }}
-      />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack>
+        <Stack.Screen name="map/index" options={{ header: () => <BackHeader /> }} />
+        <Stack.Screen name="option/index" options={{ header: () => <BackHeader /> }} />
+        <Stack.Screen name="qr/index" options={{ header: () => <BackHeader /> }} />
+        <Stack.Screen name="chatbot/index" options={{ headerShown: false }} />
+        <Stack.Screen name="postDetail/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="conversationDetail/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="profileEdit/index" options={{ header: () => <BackHeader /> }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+
+      {/* HIỂN THỊ SPLASH ĐÈ LÊN TRÊN STACK TRONG 5 GIÂY ĐẦU */}
+      {splashVisible && (
+        <CustomSplashScreen 
+          isReady={isReady} 
+          statusText={status}
+          onFinish={() => setSplashVisible(false)} 
+        />
+      )}
+    </View>
   );
 };
 

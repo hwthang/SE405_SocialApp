@@ -342,7 +342,7 @@ const PostActionBar = ({
         {showMore && (
           <TouchableOpacity
             style={styles.moreButton}
-            onPress={() => router.push(`/(main)/postDetail/${postId}`)}
+            onPress={() => router.replace(`/(main)/postDetail/${postId}`)}
           >
             <MoreHorizontal size={20} color="#444" />
           </TouchableOpacity>
