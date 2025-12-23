@@ -1,4 +1,4 @@
-// components/message/MessageMedia/index.tsx
+import { useVideoPlayer, VideoView } from "expo-video"; // Import từ expo-video
 import { X } from "lucide-react-native";
 import React, { useState } from "react";
 import { Image, Modal, Pressable, StyleSheet, View } from "react-native";
@@ -13,8 +13,23 @@ type Props = {
 const MessageMedia = ({ type, uri }: Props) => {
   const [visible, setVisible] = useState(false);
 
-  const open = () => setVisible(true);
-  const close = () => setVisible(false);
+  // Khởi tạo VideoPlayer cho expo-video
+  const player = useVideoPlayer(uri, (player) => {
+    player.loop = true;
+    // player.play(); // Bạn có thể tùy chỉnh tự động phát ở đây
+  });
+
+  const open = () => {
+    setVisible(true);
+    if (type !== "IMAGE") {
+      player.play(); // Tự động phát khi mở modal
+    }
+  };
+
+  const close = () => {
+    player.pause(); // Dừng video khi đóng modal
+    setVisible(false);
+  };
 
   return (
     <>
@@ -29,20 +44,27 @@ const MessageMedia = ({ type, uri }: Props) => {
         transparent
         animationType="fade"
         statusBarTranslucent
+        onRequestClose={close}
       >
         <View style={styles.fullscreen}>
           <Pressable style={styles.closeBtn} onPress={close}>
             <X size={28} color="white" />
           </Pressable>
-          {
-            type === "IMAGE" ? (
-              <Image
-                source={{ uri }}
-                style={styles.media}
-                resizeMode="contain"
-              />
-            ) : null /* VideoView có thể thêm sau */
-          }
+
+          {type === "IMAGE" ? (
+            <Image
+              source={{ uri }}
+              style={styles.media}
+              resizeMode="contain"
+            />
+          ) : (
+            <VideoView
+              player={player}
+              style={styles.media}
+              allowsFullscreen
+              allowsPictureInPicture
+            />
+          )}
         </View>
       </Modal>
     </>
@@ -58,7 +80,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  media: { width: "100%", height: "100%" },
+  media: { 
+    width: "100%", 
+    height: "100%" 
+  },
   closeBtn: {
     position: "absolute",
     top: 50,
