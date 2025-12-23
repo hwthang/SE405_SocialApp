@@ -120,10 +120,7 @@ const MainLayout = () => {
         options={{ header: () => <BackHeader /> }}
       />
       <Stack.Screen name="chatbot/index" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="postDetail/[id]"
-        options={{ header: () => <BackHeader /> }}
-      />
+      <Stack.Screen name="postDetail/[id]" options={{ headerShown: false }} />
       <Stack.Screen
         name="conversationDetail/[id]"
         options={{ headerShown: false }}

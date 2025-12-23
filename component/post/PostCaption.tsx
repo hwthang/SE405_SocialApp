@@ -36,7 +36,7 @@ export default PostCaption;
 const styles = StyleSheet.create({
   container: {
     marginTop: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 12,
   },
 
   captionText: {
