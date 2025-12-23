@@ -2,11 +2,12 @@ import { Api } from "@/helper/Api";
 import { AuthHelper } from "@/helper/AuthHelper";
 import { Avatars } from "@/public/img/avatar";
 import { router } from "expo-router";
-import { MapPin, UserX } from "lucide-react-native"; // Thêm icon chặn
+import { MapPin, Send, UserPlus, UserX } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Clipboard,
   FlatList,
   Image,
   StyleSheet,
@@ -16,6 +17,7 @@ import {
   View,
 } from "react-native";
 import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
+import Toast from "react-native-toast-message";
 import TagChips from "./TagChip";
 
 const FriendListSection = () => {
@@ -23,6 +25,10 @@ const FriendListSection = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all");
   const [friends, setFriends] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // States cho Kết bạn nhanh
+  const [friendIdInput, setFriendIdInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const fetchFriends = async () => {
     try {
@@ -56,6 +62,53 @@ const FriendListSection = () => {
     fetchFriends();
   }, []);
 
+  // --- LOGIC KẾT BẠN NHANH ---
+  const handleSendRequest = async () => {
+    const data = friendIdInput.trim();
+    if (!data) return;
+
+    setIsSending(true);
+    try {
+      const token = await AuthHelper.getInstance().getAccessToken();
+      const response = await fetch(
+        `${Api.getInstance().baseUrl}/friends/requests`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ toUserId: data }),
+        }
+      );
+      const result = await response.json();
+
+      if (result.data?.id || result.id) {
+        Toast.show({
+          type: 'success',
+          text1: 'Gửi lời mời kết bạn thành công',
+          text2: 'Hãy đợi người ấy đồng ý nhé!'
+        });
+        setFriendIdInput("");
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Thất bại',
+          text2: result.message || 'Không thể gửi lời mời'
+        });
+      }
+    } catch (error) {
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Lỗi kết nối máy chủ' });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handlePaste = async () => {
+    const content = await Clipboard.getString();
+    if (content) setFriendIdInput(content);
+  };
+
   // Hàm xử lý Block
   const handleBlockFriend = async (targetUserId: string, name: string) => {
     Alert.alert(
@@ -79,7 +132,6 @@ const FriendListSection = () => {
               });
 
               if (response.ok) {
-                // Xóa bạn bè khỏi danh sách hiển thị sau khi chặn thành công
                 setFriends((prev) => prev.filter((f) => f.id !== targetUserId));
                 Alert.alert("Thành công", `Đã chặn ${name}`);
               } else {
@@ -100,7 +152,6 @@ const FriendListSection = () => {
     return matchesSearch && matchesStatus;
   });
 
-  // Render nút Block nằm bên phải (hiện ra khi vuốt sang trái)
   const renderRightActions = (id: string, name: string) => {
     return (
       <TouchableOpacity
@@ -123,12 +174,40 @@ const FriendListSection = () => {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, backgroundColor: '#f8f9fa' }}>
+        
+        {/* SECTION KẾT BẠN NHANH */}
+        <View style={styles.quickAddContainer}>
+          <Text style={styles.sectionTitle}>Kết bạn nhanh</Text>
+          <View style={styles.inputWrapper}>
+            <UserPlus size={20} color="#65676b" style={{ marginLeft: 12 }} />
+            <TextInput
+              style={styles.quickInput}
+              placeholder="Nhập ID người dùng..."
+              value={friendIdInput}
+              onChangeText={setFriendIdInput}
+              placeholderTextColor="#999"
+            />
+            {friendIdInput.length === 0 && (
+              <TouchableOpacity onPress={handlePaste} style={styles.pasteBtn}>
+                <Text style={styles.pasteText}>Dán</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity 
+              onPress={handleSendRequest}
+              disabled={isSending || !friendIdInput.trim()}
+              style={[styles.sendBtn, !friendIdInput.trim() && { backgroundColor: '#ccc' }]}
+            >
+              {isSending ? <ActivityIndicator size="small" color="#fff" /> : <Send size={18} color="#fff" />}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Toolbar */}
         <View style={styles.toolbar}>
           <TextInput
             style={styles.searchInput}
-            placeholder="Tìm kiếm bạn bè..."
+            placeholder="Tìm kiếm trong danh sách..."
             value={searchText}
             onChangeText={setSearchText}
           />
@@ -141,13 +220,13 @@ const FriendListSection = () => {
                   onPress={() => setStatusFilter(status as any)}
                 >
                   <Text style={[styles.filterText, statusFilter === status && styles.filterTextActive]}>
-                    {status === "all" ? "Tất cả" : status === "online" ? "Trực tuyến" : "Ngoại tuyến"}
+                    {status === "all" ? "Tất cả" : status === "online" ? "Online" : "Offline"}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
             <TouchableOpacity style={styles.mapBtn} onPress={() => router.push("/(main)/map")}>
-              <MapPin size={24} color="#fff" />
+              <MapPin size={22} color="#fff" />
             </TouchableOpacity>
           </View>
         </View>
@@ -155,7 +234,7 @@ const FriendListSection = () => {
         <FlatList
           data={filteredList}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingBottom: 16 }}
+          contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingBottom: 100 }}
           ListEmptyComponent={<Text style={styles.emptyText}>Không tìm thấy bạn bè nào.</Text>}
           renderItem={({ item }) => (
             <Swipeable
@@ -185,9 +264,50 @@ const FriendListSection = () => {
   );
 };
 
-export default FriendListSection;
-
 const styles = StyleSheet.create({
+  quickAddContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f2f5',
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1c1e21',
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f2f5',
+    borderRadius: 12,
+    height: 48,
+  },
+  quickInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    fontSize: 14,
+    color: '#1c1e21',
+  },
+  pasteBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#ddd',
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  pasteText: { fontSize: 11, fontWeight: '700', color: '#4b4f56' },
+  sendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+  },
   toolbar: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -246,7 +366,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: "100%",
     borderRadius: 12,
-    marginLeft: 8, // Tạo khoảng cách nhỏ với item
+    marginLeft: 8,
   },
   blockActionText: {
     color: "#fff",
@@ -256,3 +376,5 @@ const styles = StyleSheet.create({
   },
   emptyText: { textAlign: "center", marginTop: 20, color: "#999" },
 });
+
+export default FriendListSection;

@@ -2,11 +2,14 @@ import MyQr from "@/component/profile/MyQr";
 import { Colors } from "@/constant/Colors";
 import { Api } from "@/helper/Api";
 import { AuthHelper } from "@/helper/AuthHelper";
+import { Avatars } from "@/public/img/avatar";
 import { UserService } from "@/service/UserService";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import {
   AlertCircle,
   CheckCircle2,
+  Copy,
   Eye,
   EyeOff,
   KeyRound,
@@ -14,11 +17,12 @@ import {
   LogOut,
   Share2,
   UserPen,
-  X
+  X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Clipboard,
   Image,
   Modal,
   RefreshControl,
@@ -33,7 +37,7 @@ import {
 import Toast from "react-native-toast-message";
 
 /* =======================================================
-   RE-USE INPUT COMPONENT
+    RE-USE INPUT COMPONENT
 ======================================================= */
 const PasswordInput = ({ label, value, onChangeText, placeholder }: any) => {
   const [secure, setSecure] = useState(true);
@@ -55,7 +59,11 @@ const PasswordInput = ({ label, value, onChangeText, placeholder }: any) => {
           onBlur={() => setFocused(false)}
         />
         <TouchableOpacity onPress={() => setSecure(!secure)}>
-          {secure ? <Eye size={20} color="#6B7280" /> : <EyeOff size={20} color="#6B7280" />}
+          {secure ? (
+            <Eye size={20} color="#6B7280" />
+          ) : (
+            <EyeOff size={20} color="#6B7280" />
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -63,7 +71,7 @@ const PasswordInput = ({ label, value, onChangeText, placeholder }: any) => {
 };
 
 /* =======================================================
-   MAIN SCREEN
+    MAIN SCREEN
 ======================================================= */
 const ProfileScreen = () => {
   const [user, setUser] = useState<any>(null);
@@ -75,19 +83,13 @@ const ProfileScreen = () => {
   const [newPassword, setNewPassword] = useState("");
   const [loadingPass, setLoadingPass] = useState(false);
 
-  // State cho Custom Alert
   const [alertConfig, setAlertConfig] = useState<{
     visible: boolean;
     type: "success" | "error" | "confirm";
     title: string;
     message: string;
     onConfirm?: () => void;
-  }>({
-    visible: false,
-    type: "success",
-    title: "",
-    message: "",
-  });
+  }>({ visible: false, type: "success", title: "", message: "" });
 
   const fetchUser = async () => {
     try {
@@ -108,8 +110,25 @@ const ProfileScreen = () => {
     setRefreshing(false);
   }, []);
 
-  const showAlert = (type: "success" | "error" | "confirm", title: string, message: string, onConfirm?: () => void) => {
+  const showAlert = (
+    type: "success" | "error" | "confirm",
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
     setAlertConfig({ visible: true, type, title, message, onConfirm });
+  };
+
+  const copyToClipboard = () => {
+    if (user?.id) {
+      Clipboard.setString(user.id);
+      Toast.show({
+        type: "success",
+        text1: "Đã sao chép ID! 📋",
+        text2: "Gửi mã này cho bạn bè để kết nối nhé.",
+        position: "bottom",
+      });
+    }
   };
 
   const handleShare = async () => {
@@ -136,15 +155,17 @@ const ProfileScreen = () => {
 
   const handleChangePassword = async () => {
     if (currentPassword.length < 6 || newPassword.length < 6) {
-      Toast.show({ type: "error", text1: "Lỗi", text2: "Mật khẩu phải từ 6 ký tự" });
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Mật khẩu phải từ 6 ký tự",
+      });
       return;
     }
-
     try {
       setLoadingPass(true);
       const api = Api.getInstance();
       const token = await AuthHelper.getInstance().getAccessToken();
-
       const res = await fetch(`${api.baseUrl}/users/me/password`, {
         method: "PATCH",
         headers: {
@@ -158,10 +179,18 @@ const ProfileScreen = () => {
         setIsPasswordModalVisible(false);
         setCurrentPassword("");
         setNewPassword("");
-        showAlert("success", "Thành công", "Mật khẩu của bạn đã được cập nhật.");
+        showAlert(
+          "success",
+          "Thành công",
+          "Mật khẩu của bạn đã được cập nhật."
+        );
       } else {
         const result = await res.json();
-        showAlert("error", "Lỗi", result.message || "Mật khẩu cũ không chính xác.");
+        showAlert(
+          "error",
+          "Lỗi",
+          result.message || "Mật khẩu cũ không chính xác."
+        );
       }
     } finally {
       setLoadingPass(false);
@@ -172,22 +201,63 @@ const ProfileScreen = () => {
     <View style={{ flex: 1, backgroundColor: "#FFF" }}>
       <ScrollView
         style={styles.container}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.blue[600]]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.blue[600]]}
+          />
+        }
       >
-        {/* Header Section */}
-        <View style={styles.headerSection}>
-          <Image source={{ uri: user?.avatarUrl || `https://ui-avatars.com/api/?name=${user?.name}` }} style={styles.avatar} />
-          <View style={styles.nameContainer}>
-            <Text style={styles.userName}>{user?.name || "Đang tải..."}</Text>
-            <Text style={styles.userEmail}>{user?.email}</Text>
+        {/* Header Section with ID Card Style */}
+        <LinearGradient
+          colors={["#1E3A8A", "#2563EB"]}
+          style={styles.headerBackground}
+        >
+          <View style={styles.profileHeader}>
+            <Image
+              source={
+                user?.avatarUrl
+                  ? {
+                      uri:
+                        user?.avatarUrl ||
+                        `https://ui-avatars.com/api/?name=${user?.name}`,
+                    }
+                  : Avatars.cat
+              }
+              style={styles.avatar}
+            />
+            <View style={styles.nameContainer}>
+              <Text style={styles.userName}>{user?.name || "Đang tải..."}</Text>
+              <Text style={styles.userEmail}>{user?.email}</Text>
+            </View>
           </View>
-        </View>
+
+          {/* New ID Badge Section */}
+          <View style={styles.idBadgeContainer}>
+            <Text style={styles.idLabel}>MÃ ĐỊNH DANH (ID)</Text>
+            <TouchableOpacity
+              style={styles.idBadge}
+              onPress={copyToClipboard}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.idText} numberOfLines={1}>
+                {user?.id || "----------"}
+              </Text>
+              <View style={styles.copyIconBox}>
+                <Copy size={14} color="#FFF" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
 
         {/* Bio Section */}
         <View style={styles.bioSection}>
           <Text style={styles.bioTitle}>Giới thiệu</Text>
           <View style={styles.bioContent}>
-            <Text style={styles.bioText}>{user?.bio || "Chưa có lời giới thiệu."}</Text>
+            <Text style={styles.bioText}>
+              {user?.bio || "Chưa có lời giới thiệu."}
+            </Text>
           </View>
         </View>
 
@@ -235,25 +305,24 @@ const ProfileScreen = () => {
             <View style={styles.modalIndicator} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Bảo mật tài khoản</Text>
-              <TouchableOpacity onPress={() => setIsPasswordModalVisible(false)}>
+              <TouchableOpacity
+                onPress={() => setIsPasswordModalVisible(false)}
+              >
                 <X size={24} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-
             <PasswordInput
               label="Mật khẩu hiện tại"
               value={currentPassword}
               onChangeText={setCurrentPassword}
               placeholder="Nhập mật khẩu cũ"
             />
-
             <PasswordInput
               label="Mật khẩu mới"
               value={newPassword}
               onChangeText={setNewPassword}
               placeholder="Nhập mật khẩu mới"
             />
-
             <TouchableOpacity
               style={[styles.submitBtn, loadingPass && { opacity: 0.7 }]}
               onPress={handleChangePassword}
@@ -269,36 +338,44 @@ const ProfileScreen = () => {
         </View>
       </Modal>
 
-      {/* CUSTOM ALERT MODAL - PHẦN XÁC NHẬN ĐĂNG XUẤT MỚI */}
+      {/* CUSTOM ALERT MODAL */}
       <Modal visible={alertConfig.visible} transparent animationType="fade">
         <View style={styles.alertOverlay}>
           <View style={styles.alertBox}>
-            <View style={[
-              styles.alertIconCircle,
-              { backgroundColor: alertConfig.type === 'confirm' ? '#FEF2F2' : (alertConfig.type === 'success' ? '#ECFDF5' : '#FEF2F2') }
-            ]}>
-              {alertConfig.type === 'confirm' ? (
+            <View
+              style={[
+                styles.alertIconCircle,
+                {
+                  backgroundColor:
+                    alertConfig.type === "confirm"
+                      ? "#FEF2F2"
+                      : alertConfig.type === "success"
+                      ? "#ECFDF5"
+                      : "#FEF2F2",
+                },
+              ]}
+            >
+              {alertConfig.type === "confirm" ? (
                 <LogOut size={32} color="#EF4444" />
-              ) : alertConfig.type === 'success' ? (
+              ) : alertConfig.type === "success" ? (
                 <CheckCircle2 size={32} color="#10B981" />
               ) : (
                 <AlertCircle size={32} color="#EF4444" />
               )}
             </View>
-
             <Text style={styles.alertTitle}>{alertConfig.title}</Text>
             <Text style={styles.alertMessage}>{alertConfig.message}</Text>
-
             <View style={styles.alertActionRow}>
               {alertConfig.type === "confirm" ? (
                 <>
                   <TouchableOpacity
                     style={[styles.alertBtnSmall, styles.btnCancel]}
-                    onPress={() => setAlertConfig({ ...alertConfig, visible: false })}
+                    onPress={() =>
+                      setAlertConfig({ ...alertConfig, visible: false })
+                    }
                   >
                     <Text style={styles.btnTextCancel}>Hủy</Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
                     style={[styles.alertBtnSmall, styles.btnConfirm]}
                     onPress={() => {
@@ -311,8 +388,16 @@ const ProfileScreen = () => {
                 </>
               ) : (
                 <TouchableOpacity
-                  style={[styles.alertBtnFull, { backgroundColor: alertConfig.type === "success" ? "#10B981" : "#EF4444" }]}
-                  onPress={() => setAlertConfig({ ...alertConfig, visible: false })}
+                  style={[
+                    styles.alertBtnFull,
+                    {
+                      backgroundColor:
+                        alertConfig.type === "success" ? "#10B981" : "#EF4444",
+                    },
+                  ]}
+                  onPress={() =>
+                    setAlertConfig({ ...alertConfig, visible: false })
+                  }
                 >
                   <Text style={styles.alertBtnText}>Đóng</Text>
                 </TouchableOpacity>
@@ -329,33 +414,133 @@ export default ProfileScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFF" },
-  headerSection: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 25 },
-  avatar: { width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: "#F3F4F6" },
-  nameContainer: { marginLeft: 18, flex: 1 },
-  userName: { fontSize: 22, fontWeight: "700", color: "#1F2937" },
-  userEmail: { fontSize: 14, color: "#6B7280" },
-  bioSection: { paddingHorizontal: 20, marginBottom: 10 },
-  bioTitle: { fontSize: 15, fontWeight: "600", color: "#374151", marginBottom: 8 },
-  bioContent: { backgroundColor: "#F9FAFB", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#F3F4F6" },
-  bioText: { fontSize: 14, color: "#4B5563", lineHeight: 20 },
-  actionRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, marginVertical: 20 },
-  actionBtn: { height: 46, borderRadius: 12, justifyContent: "center", alignItems: "center", flexDirection: "row" },
+  headerBackground: {
+    paddingTop: 60,
+    paddingBottom: 25,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+  },
+  profileHeader: { flexDirection: "row", alignItems: "center" },
+  avatar: {
+    width: 75,
+    height: 75,
+    borderRadius: 38,
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  nameContainer: { marginLeft: 15, flex: 1 },
+  userName: { fontSize: 22, fontWeight: "800", color: "#FFF" },
+  userEmail: { fontSize: 14, color: "rgba(255,255,255,0.7)" },
+
+  // ID Badge Styles
+  idBadgeContainer: { marginTop: 20 },
+  idLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.6)",
+    letterSpacing: 1,
+    marginBottom: 6,
+    marginLeft: 5,
+  },
+  idBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  idText: {
+    flex: 1,
+    color: "#FFF",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  copyIconBox: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    padding: 5,
+    borderRadius: 8,
+  },
+
+  bioSection: { paddingHorizontal: 20, marginTop: 25 },
+  bioTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 10,
+  },
+  bioContent: {
+    backgroundColor: "#F9FAFB",
+    padding: 15,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  bioText: { fontSize: 14, color: "#4B5563", lineHeight: 22 },
+
+  actionRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: 10,
+    marginTop: 20,
+  },
+  actionBtn: {
+    height: 48,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+  },
   editBtn: { flex: 1, backgroundColor: Colors.blue[600], gap: 8 },
-  editBtnText: { color: "#FFF", fontSize: 14, fontWeight: "600" },
+  editBtnText: { color: "#FFF", fontSize: 14, fontWeight: "700" },
   iconBtn: { width: 50, backgroundColor: "#F3F4F6" },
-  logoutBtn: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#FEE2E2" },
-  qrSection: { alignItems: "center", marginTop: 10 },
-  
-  // Modal Style
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalContent: { backgroundColor: "#FFF", borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 24, paddingBottom: 40 },
-  modalIndicator: { width: 40, height: 5, backgroundColor: "#E5E7EB", borderRadius: 3, alignSelf: "center", marginBottom: 15 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 25 },
+  logoutBtn: {
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "#FEE2E2",
+  },
+  qrSection: { alignItems: "center", marginTop: 5, paddingBottom: 30 },
+
+  // Modal & Alert (Giữ nguyên các style cũ của bạn)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalIndicator: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    alignSelf: "center",
+    marginBottom: 15,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 25,
+  },
   modalTitle: { fontSize: 20, fontWeight: "700", color: "#1F2937" },
-  
-  // Input Style
   inputContainer: { marginBottom: 18 },
-  inputLabel: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 8 },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+  },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -368,10 +553,15 @@ const styles = StyleSheet.create({
   },
   inputFocused: { borderColor: Colors.blue[600], backgroundColor: "#FFF" },
   textInput: { flex: 1, fontSize: 16, paddingLeft: 10, color: "#1F2937" },
-  submitBtn: { backgroundColor: Colors.blue[600], height: 56, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 10 },
+  submitBtn: {
+    backgroundColor: Colors.blue[600],
+    height: 56,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 10,
+  },
   submitBtnText: { color: "#FFF", fontWeight: "700", fontSize: 15 },
-
-  // --- CUSTOM ALERT STYLES ---
   alertOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -384,9 +574,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     padding: 24,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
     elevation: 10,
   },
   alertIconCircle: {
@@ -397,7 +584,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  alertTitle: { fontSize: 20, fontWeight: "800", color: "#1F2937", marginBottom: 8 },
+  alertTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
   alertMessage: {
     fontSize: 15,
     color: "#6B7280",
@@ -405,17 +597,23 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 24,
   },
-  alertActionRow: { flexDirection: 'row', gap: 12, width: '100%' },
-  alertBtnSmall: { flex: 1, height: 52, borderRadius: 14, justifyContent: "center", alignItems: "center" },
-  alertBtnFull: { width: "100%", height: 52, borderRadius: 14, justifyContent: "center", alignItems: "center" },
-  btnCancel: { backgroundColor: '#F3F4F6' },
-  btnConfirm: { 
-    backgroundColor: '#EF4444',
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+  alertActionRow: { flexDirection: "row", gap: 12, width: "100%" },
+  alertBtnSmall: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  btnTextCancel: { color: '#4B5563', fontWeight: '700', fontSize: 16 },
-  alertBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  alertBtnFull: {
+    width: "100%",
+    height: 52,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  btnCancel: { backgroundColor: "#F3F4F6" },
+  btnConfirm: { backgroundColor: "#EF4444" },
+  btnTextCancel: { color: "#4B5563", fontWeight: "700", fontSize: 16 },
+  alertBtnText: { color: "#FFF", fontWeight: "700", fontSize: 16 },
 });

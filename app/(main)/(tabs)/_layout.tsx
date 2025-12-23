@@ -52,7 +52,7 @@ const TabLayout = () => {
           backgroundColor: "#fff",
           height: Platform.OS === "ios" ? 88 : 100,
           borderTopColor: "#eee",
-          paddingBottom: Platform.OS === "ios" ? 28 : 10,
+          paddingBottom: Platform.OS === "ios" ? 28 : 0,
           elevation: 10,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "500" },
@@ -101,8 +101,8 @@ const TabLayout = () => {
       <Tabs.Screen
         name="profile/index"
         options={{
-          header: () => <MainHeader />,
-          title: "Cá nhân",
+          headerShown: false,
+          title: "",
           tabBarIcon: ({ color, focused }) => (
             <View
               style={[
@@ -138,9 +138,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   avatarContainer: {
-    width: 32, // Thu nhỏ lại một chút cho cân đối tab bar
-    height: 32,
-    borderRadius: 16,
+    width: 40, // Thu nhỏ lại một chút cho cân đối tab bar
+    height: 40,
+    borderRadius: 999,
+    marginTop: 10,
     borderWidth: 1.5,
     borderColor: "transparent",
     justifyContent: "center",

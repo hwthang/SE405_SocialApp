@@ -1,3 +1,4 @@
+import { X } from "lucide-react-native"; // Thêm icon X để nút đóng chuyên nghiệp hơn
 import React from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -17,12 +18,13 @@ type Props = {
   onUnreact: () => void;
   onReply: () => void;
   onDelete: () => void;
+  onClose: () => void; // Prop này vẫn cần để thực thi lệnh đóng từ Bubble truyền vào
 };
 
-const MessageActions = ({ isMe, hasReacted, onReact, onUnreact, onReply, onDelete }: Props) => {
+const MessageActions = ({ isMe, hasReacted, onReact, onUnreact, onReply, onDelete, onClose }: Props) => {
   return (
     <View style={[styles.container, isMe ? styles.alignEnd : styles.alignStart]}>
-      {/* Reaction Bar - Bo tròn mạnh, bóng đổ mịn */}
+      {/* Reaction Bar */}
       <View style={styles.reactionBar}>
         {Object.entries(REACTIONS_MAP).map(([key, emoji]) => (
           <TouchableOpacity 
@@ -42,8 +44,15 @@ const MessageActions = ({ isMe, hasReacted, onReact, onUnreact, onReply, onDelet
         )}
       </View>
 
-      {/* Menu Actions - Thiết kế dạng thẻ mini */}
+      {/* Menu Actions - Đã thêm nút Đóng thủ công */}
       <View style={[styles.actionBar, isMe ? styles.rowReverse : styles.row]}>
+        {/* Nút Đóng thủ công (Dấu X hoặc chữ Đóng) */}
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <X size={16} color="#6B7280" />
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
         <TouchableOpacity onPress={onReply} style={styles.actionItem}>
           <Text style={styles.actionText}>Trả lời</Text>
         </TouchableOpacity>
@@ -78,12 +87,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 32,
-    // Shadow cho iOS
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
-    // Shadow cho Android
     elevation: 8,
     alignItems: "center",
     marginBottom: 6,
@@ -95,7 +102,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   emojiText: { 
-    fontSize: 26, // Tăng nhẹ kích thước emoji
+    fontSize: 26,
   },
   unreactBtn: { 
     backgroundColor: "#F0F2F5", 
@@ -116,10 +123,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
-    // Shadow nhẹ hơn thanh reaction
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -130,7 +136,7 @@ const styles = StyleSheet.create({
   rowReverse: { flexDirection: "row-reverse" },
   
   actionItem: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
   },
   actionText: { 
     color: "#1C1E21", 
@@ -138,7 +144,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   deleteText: { 
-    color: "#FF3B30", // Màu đỏ chuẩn hệ thống
+    color: "#FF3B30", 
   },
   divider: {
     width: 1,
@@ -146,4 +152,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#E4E6EB",
     marginHorizontal: 4,
   },
+  closeBtn: {
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  }
 });

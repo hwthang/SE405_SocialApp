@@ -6,7 +6,7 @@ import {
   PanResponder,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
 import MessageActions, { REACTIONS_MAP } from "./MessageActions";
 import MessageMedia from "./MessageMedia";
@@ -28,6 +28,7 @@ const MessageBubble = ({
   const isMe = item.senderId === myId;
   const isText = item.type === "TEXT";
 
+  // Tìm tin nhắn gốc nếu đây là một câu trả lời
   const quotedMessage = item.parentMessageId
     ? messages.find((m: any) => m.id === item.parentMessageId)
     : null;
@@ -56,6 +57,7 @@ const MessageBubble = ({
 
   return (
     <View style={[styles.wrapper, !isMe && styles.row]}>
+      {/* Avatar của đối phương */}
       {!isMe && (
         <Image
           source={
@@ -68,6 +70,7 @@ const MessageBubble = ({
       )}
 
       <View style={{ flex: 1 }}>
+        {/* Tên người gửi nếu không phải mình */}
         {!isMe && (
           <Text style={styles.senderName}>{item.senderName}</Text>
         )}
@@ -82,36 +85,57 @@ const MessageBubble = ({
               backgroundColor: isText
                 ? isMe
                   ? "#3b82f6"
-                  : "#e5e7eb"
+                  : "#F2F3F5"
                 : "transparent",
             },
           ]}
         >
+          {/* PHẦN HIỂN THỊ REPLY (QUOTED MESSAGE) CẬP NHẬT MỚI */}
           {quotedMessage && (
-            <View style={styles.quote}>
-              <Text style={styles.quoteText} numberOfLines={1}>
-                {quotedMessage.content}
-              </Text>
+            <View
+              style={[
+                styles.quoteContainer,
+                { 
+                    backgroundColor: isMe ? "rgba(0,0,0,0.15)" : "rgba(0,0,0,0.06)",
+                    borderLeftColor: isMe ? "#FFF" : "#3b82f6" 
+                },
+              ]}
+            >
+              <View style={styles.quoteContent}>
+                <Text style={[styles.quoteUser, { color: isMe ? "#BFDBFE" : "#3b82f6" }]}>
+                   {quotedMessage.senderId === myId ? "Bạn" : quotedMessage.senderName}
+                </Text>
+                <Text 
+                    style={[styles.quoteText, { color: isMe ? "#E0E7FF" : "#4B5563" }]} 
+                    numberOfLines={2}
+                >
+                  {quotedMessage.content}
+                </Text>
+              </View>
             </View>
           )}
 
+          {/* Nội dung tin nhắn chính */}
           {isText && (
-            <Text style={{ color: isMe ? "#fff" : "#000" }}>
+            <Text style={[styles.messageText, { color: isMe ? "#fff" : "#1C1E21" }]}>
               {item.content}
             </Text>
           )}
 
+          {/* Hiển thị Media (Ảnh/Video) */}
           {item.mediaUrl && (
             <MessageMedia type={item.type} uri={item.mediaUrl} />
           )}
 
+          {/* Hiển thị Reaction */}
           {item.myReaction && (
             <View style={styles.reaction}>
-              <Text>{REACTIONS_MAP[item.myReaction]}</Text>
+              <Text style={{ fontSize: 13 }}>{REACTIONS_MAP[item.myReaction]}</Text>
             </View>
           )}
         </Animated.View>
 
+        {/* Action Bar (Thả cảm xúc, Trả lời, Xóa) */}
         {isActive && (
           <View style={{ marginTop: 6 }}>
             <MessageActions
@@ -119,8 +143,9 @@ const MessageBubble = ({
               hasReacted={!!item.myReaction}
               onReact={(e: string) => onReact(item.id, e)}
               onReply={() => onReply(item)}
-              onUnreact={onUnreact}
-              onDelete={onDelete}
+              onUnreact={() => onUnreact(item.id)}
+              onDelete={() => onDelete(item.id)}
+              onClose={onClose}
             />
           </View>
         )}
@@ -133,44 +158,73 @@ export default React.memo(MessageBubble);
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginVertical: 6,
+    marginVertical: 4,
     flexDirection: "row",
+    paddingHorizontal: 0,
   },
   row: {
-    alignItems: "flex-start",
+    alignItems: "flex-end", // Avatar thẳng hàng với tin nhắn cuối
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     marginRight: 8,
-  },
-  senderName: {
-    fontSize: 12,
-    color: "#555",
     marginBottom: 2,
   },
-  bubble: {
-    borderRadius: 18,
-    padding: 12,
-    maxWidth: "85%",
+  senderName: {
+    fontSize: 11,
+    color: "#8E8E93",
+    marginBottom: 2,
+    marginLeft: 12,
   },
-  quote: {
+  bubble: {
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    maxWidth: "82%",
+    position: "relative",
+  },
+  // STYLE QUOTE (REPLY) CẬP NHẬT
+  quoteContainer: {
     borderLeftWidth: 3,
-    borderLeftColor: "#3b82f6",
-    paddingLeft: 6,
-    marginBottom: 6,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  quoteContent: {
+    flexDirection: "column",
+  },
+  quoteUser: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 2,
   },
   quoteText: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: 13,
+    lineHeight: 18,
+    fontStyle: "italic",
+  },
+  messageText: {
+    fontSize: 16,
+    lineHeight: 22,
   },
   reaction: {
     position: "absolute",
     bottom: -10,
-    right: -6,
+    right: -4,
     backgroundColor: "#fff",
-    borderRadius: 10,
-    paddingHorizontal: 4,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    // Shadow cho reaction nổi lên
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
 });
